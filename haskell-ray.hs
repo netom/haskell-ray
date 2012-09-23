@@ -14,7 +14,7 @@ data Direction = Direction Float Float Float deriving (Eq, Ord, Show)
 
 -- Represents one of 
 data Shape =
-      Sphere Point Float                     -- Place, radius
+    Sphere Point Float                     -- Place, radius
     | Cube Point Direction Direction Float   -- Place, face1 normal, face2 normal, edge size
     | Square Point Direction Direction Float -- Place, face normal, edge normal, edge size
     deriving (Eq, Ord) -- Ugly
