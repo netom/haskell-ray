@@ -2,44 +2,44 @@ import qualified Graphics.GD as GD
 
 -- Represents a color in R G B format
 -- values ranges from 0 to 1
-data Color = Color Float Float Float deriving (Eq, Ord, Show)
+data Color = Color !Float !Float !Float deriving (Eq, Ord, Show)
 
 -- Represents a point in the 3D space
 -- x y z
-data Point = Point Float Float Float deriving (Eq, Ord, Show)
+data Point = Point !Float !Float !Float deriving (Eq, Ord, Show)
 
 -- Represents a direction (e.g a vector)
 -- x y z
-data Direction = Direction Float Float Float deriving (Eq, Ord, Show)
+data Direction = Direction !Float !Float !Float deriving (Eq, Ord, Show)
 
 -- Represents one of 
 data Shape =
-    Sphere Point Float                     -- Place, radius
-    | Cube Point Direction Direction Float   -- Place, face1 normal, face2 normal, edge size
-    | Square Point Direction Direction Float -- Place, face normal, edge normal, edge size
+    Sphere !Point !Float                     -- Place, radius
+    | Cube !Point !Direction !Direction !Float   -- Place, face1 normal, face2 normal, edge size
+    | Square !Point !Direction !Direction !Float -- Place, face normal, edge normal, edge size
     deriving (Eq, Ord) -- Ugly
 
 -- Represents a material
 -- opaqueness, reflectivity, trans. color, 
 data Material = Material
-    Float -- Opaqueness, 0: opaque, 1: transculent
-    Float -- Reflectivity, 0: diffuse, 1: perfect mirror
-    Color -- Diffuse tint
-    Color -- Reflection tint
-    Color -- Inner tint
+    !Float -- Opaqueness, 0: opaque, 1: transculent
+    !Float -- Reflectivity, 0: diffuse, 1: perfect mirror
+    !Color -- Diffuse tint
+    !Color -- Reflection tint
+    !Color -- Inner tint
     deriving (Eq, Ord) -- Ugly.
 
 -- Represents an object that has a shape and a material
-data Object = Object Shape Material deriving (Eq, Ord) -- Ugly. refactor firstHit
+data Object = Object !Shape !Material deriving (Eq, Ord) -- Ugly. refactor firstHit
 
 -- Represents a ray (semi line)
-data Ray = Ray Point Direction
+data Ray = Ray !Point !Direction
 
 -- Represents a scene (list of objects)
 data Scene = Scene
     [Object] -- List of objects
-    Color    -- Ambient light
-    Color    -- Background color
+    !Color    -- Ambient light
+    !Color    -- Background color
 
 -- Turns a color into an integer palatable by GF
 color2GDColor :: Color -> GD.Color

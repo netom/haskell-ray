@@ -10,12 +10,29 @@ data Color = Color {
 } deriving (Show)
 
 
+data Transformation = Transformation {
+    t11 :: Float,
+    t12 :: Float,
+    t13 :: Float,
+    t21 :: Float,
+    t22 :: Float,
+    t23 :: Float,
+    t31 :: Float,
+    t32 :: Float,
+    t33 :: Float
+}
+
+class Transformable a where
+    transform :: Transformation -> a -> a
+
 data Point = Point {
     point_x :: Float,
     point_y :: Float,
     point_z :: Float
 } deriving (Show)
 
+instance Transformable Point where
+    transform t p@(Point x y z) = p
 
 data Vector = Vector {
     vector_x :: Float,
@@ -23,6 +40,9 @@ data Vector = Vector {
     vector_z :: Float
 } deriving (Show)
 
+
+instance Transformable Vector where
+    transform t v@(Vector x y z) = v
 
 data Shape =
     Cube  -- Unit cube 

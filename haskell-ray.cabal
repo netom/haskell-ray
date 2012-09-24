@@ -3,18 +3,17 @@
 
 name:                haskell-ray
 version:             0.1.0.0
-synopsis:            A simple raytracer in haskell
--- description:         
+synopsis:            A simple raytracer in Haskell
+description:         A simple raytracew written in Haskell
 license:             LGPL-3
 license-file:        LICENSE
 author:              Fábián Tamás László
 maintainer:          giganetom@gmail.com
--- copyright:           
 category:            Graphics
 build-type:          Simple
 cabal-version:       >=1.8
 
 executable haskell-ray
   main-is:             haskell-ray.hs
-  -- other-modules:       
   build-depends:       base ==4.5.*,gd
+  ghc-options:          -Wall -O2 -funbox-strict-fields
