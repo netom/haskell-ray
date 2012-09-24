@@ -1,4 +1,5 @@
 import Data.List
+import Data.Maybe
 
 -- Color in R G B format
 -- values ranges from 0 to 1
@@ -21,14 +22,8 @@ data Vector = Vector {
 } deriving (Show)
 
 data Shape =
-    Box {
-        box_corner1 :: Point,
-        box_corner2 :: Point
-    }
-    | Sphere {
-        sphere_center :: Point,
-        spehre_radius :: Float
-    }
+    Cube  -- Unit cube 
+    | Sphere -- Unit sphere
     deriving (Show)
 
 data Finish = Finish {
@@ -107,12 +102,19 @@ closestPoint p points = foldl1' (\p1 p2 -> if distance p2 p < distance p1 p then
 
 -- Returns the closest object to a ray base in the direction of the ray
 -- Todo: we should work with shapes here, not objects
-firstHit :: Ray -> [Object] -> Maybe Object
-firstHit r@(Ray p _) ol
-    | distances == [] = Nothing
-    | otherwise       = Just $ snd . minimum $ zip (distances) ol -- TODO: use fold
+firstHit :: Ray -> [Object] -> Maybe Incidence
+firstHit r@(Ray p d) objects = foldl' (closerIncidence r) Nothing objects
     where
-        distances = map (\(Just p)->p) (filter (/= Nothing) (map (incidence r . (\(Object s _) -> s)) ol))
+        closerIncidence :: Ray -> Maybe Incidence -> Object -> Maybe Incidence
+        closerIncidence r@(Ray p d) i1 o2
+            | isNothing i1 = i2
+            | isNothing i2 = i1
+            | d1 < d2      = i1
+            | otherwise    = i2
+            where
+                i2 = incidence r o2
+                d1 = distance p (incidence_point $ fromJust i1)
+                d2 = distance p (incidence_point $ fromJust i2)
 
 -- Calculates the intersection of a ray and a shape.
 -- Returns the closest intersection to the starting
@@ -124,14 +126,13 @@ incidence :: Ray -> Object -> Maybe Incidence
 -- at (0,0,0). This way the quadratic equation is simpler.
 incidence
     (Ray (Point rx ry rz) (Vector rdx rdy rdz))
-    obj@(Object (Sphere (Point sx sy sz) r) _) =
+    obj@(Object Sphere _) =
 
-    if point == Nothing
+    if isNothing point
     then Nothing
-    else Just $ Incidence obj point (Vector (px-sx) (py-sy) (py-sz))
+    else Just $ Incidence obj (fromJust point) (Vector px py py)
     where
-        (tx, ty, tz) = (rx-sx, ry-sy, rz-sz) -- Translated ray origin
-        (Point px py pz) = point
+        (Point px py pz) = fromJust point
         point =
             if solutions == []
             then Nothing
@@ -140,13 +141,13 @@ incidence
                 in Just $ Point (x*rdx+rx) (x*rdy+ry) (x*rdz+rz)
         solutions = filter (> 0) $ solveQuadratic
             (rdx**2+rdy**2+rdz**2)
-            (2*tx*rdx+2*ty*rdy+2*tz*rdz)
-            (tx**2+ty**2+tz**2-r**2)
+            (2*rx*rdx+2*ry*rdy+2*rz*rdz)
+            (rx**2+ry**2+rz**2-1)
 
 -- Intersection with a cube
 incidence
     (Ray (Point rx ry rz) (Vector rdx rdy rdz))
-    (Box (Point p1x p1y p1z) (Point p2x p2y p2z)) =
+    obj@(Object Cube _) =
 
     Nothing
 
@@ -154,10 +155,10 @@ incidence
 renderPixel :: Ray -> Scene -> Color
 
 renderPixel ray (Scene objs amb bg)
-    | int == Nothing = bg
-    | otherwise   = let Just (Object _ (Finish _ _ c _ _)) = int in c
+    | isNothing i = bg
+    | otherwise   = let Just (Incidence (Object _ (Finish c _ _ _ _ _)) _ _) = i in c
     where
-        int = firstHit ray objs
+        i = firstHit ray objs
 
 
 render :: Scene -> Camera -> [(Point,Color)]
