@@ -4,46 +4,11 @@ import qualified Graphics.GD as GD
 
 -- Color in R G B format
 -- values ranges from 0 to 1
-data Color = Color {
-    color_r :: Float,
-    color_g :: Float,
-    color_b :: Float
-} deriving (Show)
+data Color = Color Float Float Float deriving (Show)
 
+data Point = Point Float Float Float deriving (Show)
 
-data Transformation = Transformation {
-    t11 :: Float,
-    t12 :: Float,
-    t13 :: Float,
-    t21 :: Float,
-    t22 :: Float,
-    t23 :: Float,
-    t31 :: Float,
-    t32 :: Float,
-    t33 :: Float
-}
-
-class Transformable a where
-    transform :: Transformation -> a -> a
-
-data Point = Point {
-    point_x :: Float,
-    point_y :: Float,
-    point_z :: Float
-} deriving (Show)
-
-instance Transformable Point where
-    transform t p@(Point x y z) = p
-
-data Vector = Vector {
-    vector_x :: Float,
-    vector_y :: Float,
-    vector_z :: Float
-} deriving (Show)
-
-
-instance Transformable Vector where
-    transform t v@(Vector x y z) = v
+data Vector = Vector Float Float Float deriving (Show)
 
 data Shape =
     Cube  -- Unit cube 
@@ -118,11 +83,11 @@ vector (Point x1 y1 z1) (Point x2 y2 z2) = Vector (x2-x1) (y2-y1) (z2-z1)
 solveQuadratic :: Float -> Float -> Float -> [Float]
 solveQuadratic a b c
     | d <  0    = []
-    | d == 0    = [(solveWithFunc a b c (+))]
-    | otherwise = map (solveWithFunc a b c) [(+),(-)]
+    | d == 0    = [(solveWithFunc (+))]
+    | otherwise = map solveWithFunc [(+),(-)]
     where
         d = b**2 - 4*a*c
-        solveWithFunc a b c f = (-b `f` sqrt(d))/(2*a)
+        solveWithFunc f = (-b `f` sqrt(d))/(2*a)
 
 
 -- Calculates the distance of two points in 3D space
@@ -139,10 +104,10 @@ closestPoint p points = foldl1' (\p1 p2 -> if distance p2 p < distance p1 p then
 -- Returns the closest object to a ray base in the direction of the ray
 -- Todo: we should work with shapes here, not objects
 firstHit :: Ray -> [Object] -> Maybe Incidence
-firstHit r@(Ray p d) objects = foldl' (closerIncidence r) Nothing objects
+firstHit ray objects = foldl' (closerIncidence ray) Nothing objects
     where
         closerIncidence :: Ray -> Maybe Incidence -> Object -> Maybe Incidence
-        closerIncidence r@(Ray p d) i1 o2
+        closerIncidence r@(Ray p _) i1 o2
             | isNothing i1 = i2
             | isNothing i2 = i1
             | d1 < d2      = i1
@@ -167,7 +132,7 @@ incidence
 
     if isNothing point
     then Nothing
-    else Just $ Incidence obj (fromJust point) (Vector px py py)
+    else Just $ Incidence obj (fromJust point) (Vector px py pz)
     where
         (Point px py pz) = fromJust point
         point =
@@ -184,7 +149,7 @@ incidence
 -- Intersection with a cube
 incidence
     (Ray (Point rx ry rz) (Vector rdx rdy rdz))
-    obj@(Object Cube _) =
+    (Object Cube _) =
 
     Nothing
 
@@ -198,31 +163,31 @@ renderPixel ray (Scene objs amb bg)
     where
         i = firstHit ray objs
 
+-- Returns coordinates on the image, and the rays through those
+-- coordinates
+rays :: Camera -> [((x,y),Ray)]
+rays _ = [] -- TODO
 
 render :: Scene -> Camera -> [((Int, Int),Color)]
 
-render scene cam@(Camera cam_p cam_dir cam_w cam_h cam_dist cam_r) =
-    [
-        ((x, y), renderPixel (Ray cam_p (vector cam_p p)) scene) |
-        (p, (x, y)) <- [(Point x y (vector_z cam_dir), (x, y)) | x <- [0..499], y <- [0..499]] -- Always looks at 0,0,cam_dir
-    ]
+render scene cam = [((x, y), renderPixel ray scene) | ((x, y), ray) <- rays cam]
 
 
+-- Execute main program.
 main :: IO ()
 
+-- Get the list of coordinates and associated colors and call GD's
+-- setPixel function on each of them using a freshly created image.
 main = do
     image <- GD.newImage (500, 500)
-    mapM_ (\((x, y), c) -> GD.setPixel (x, y) c) render
-        (Scene
-            [Object
-                Sphere
-                (Finish (Color 0 0.7 0) (Color 0 0 0) (Color 0 0 0) 0 0 0)] -- Green sphere
-            (Color 0.7 0.7 0.7) -- Ambient white light
-            (Color 0.3 0.3 0.8) -- Background is light green
-        )
-        (Camera
-            (Point 0 0 0)
-            (Vector 0 0 1)
-            20 20 5 1
+    mapM_
+        (\((x, y), (Color r g b)) -> GD.setPixel (x, y) (GD.rgb (round (r*256)) (round (g*256)) (round (b*256))) image)
+        (render
+            (Scene
+                [Object Sphere (Finish (Color 0 0.7 0) (Color 0 0 0) (Color 0 0 0) 0 0 0)]
+                (Color 0.7 0.7 0.7)
+                (Color 0.3 0.3 0.8)
+            )
+            (Camera (Point 0 0 0) (Vector 0 0 1) 20 20 5 1)
         )
     GD.savePngFile "mandelbrot.png" image
