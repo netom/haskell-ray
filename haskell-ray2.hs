@@ -9,11 +9,13 @@ data Color = Color {
     color_b :: Float
 } deriving (Show)
 
+
 data Point = Point {
     point_x :: Float,
     point_y :: Float,
     point_z :: Float
 } deriving (Show)
+
 
 data Vector = Vector {
     vector_x :: Float,
@@ -21,10 +23,12 @@ data Vector = Vector {
     vector_z :: Float
 } deriving (Show)
 
+
 data Shape =
     Cube  -- Unit cube 
     | Sphere -- Unit sphere
     deriving (Show)
+
 
 data Finish = Finish {
     finish_ambient_color :: Color,
@@ -35,15 +39,18 @@ data Finish = Finish {
     finish_refraction    :: Float  -- 1: air
 } deriving (Show)
 
+
 data Object = Object {
     object_shape  :: Shape,
     object_finish :: Finish
 } deriving (Show)
 
+
 data Light = Light {
     light_position :: Point,
     light_color :: Color
 } deriving (Show)
+
 
 -- When a ray hit something, it expressed
 -- with an Incidence object
@@ -53,11 +60,13 @@ data Incidence = Incidence {
     incidence_normal :: Vector
 } deriving (Show)
 
+
 -- Represents a ray (semi line)
 data Ray = Ray {
     ray_origin :: Point,
     ray_direction :: Vector
 } deriving (Show)
+
 
 data Camera = Camera {
     camera_position  :: Point,
@@ -68,6 +77,7 @@ data Camera = Camera {
     camera_resolution :: Float -- 1/pixel
 } deriving (Show)
 
+
 -- Represents a scene (list of objects)
 data Scene = Scene {
     scene_objects :: [Object], -- List of objects
@@ -75,10 +85,12 @@ data Scene = Scene {
     scene_background :: Color -- Background color
 } deriving (Show)
 
+
 -- Returns a vector that represents the direction from
 -- one given point to the other
 vector :: Point -> Point -> Vector
 vector (Point x1 y1 z1) (Point x2 y2 z2) = Vector (x2-x1) (y2-y1) (z2-z1)
+
 
 -- Solves a quadratic equation. The result is the list of
 -- distinct solutions (two element, one element, or empty list)
@@ -91,14 +103,17 @@ solveQuadratic a b c
         d = b**2 - 4*a*c
         solveWithFunc a b c f = (-b `f` sqrt(d))/(2*a)
 
+
 -- Calculates the distance of two points in 3D space
 distance :: Point -> Point -> Float
 distance (Point x1 y1 z1) (Point x2 y2 z2) =
     sqrt((x1-x2)**2+(y1-y2)**2+(z1-z2)**2)
 
+
 -- Returns the closest point to a given point from a point list
 closestPoint :: Point -> [Point] -> Point
 closestPoint p points = foldl1' (\p1 p2 -> if distance p2 p < distance p1 p then p2 else p1) points
+
 
 -- Returns the closest object to a ray base in the direction of the ray
 -- Todo: we should work with shapes here, not objects
@@ -116,12 +131,13 @@ firstHit r@(Ray p d) objects = foldl' (closerIncidence r) Nothing objects
                 d1 = distance p (incidence_point $ fromJust i1)
                 d2 = distance p (incidence_point $ fromJust i2)
 
+
 -- Calculates the intersection of a ray and a shape.
 -- Returns the closest intersection to the starting
 -- point of the ray.
 incidence :: Ray -> Object -> Maybe Incidence
 
--- Intersection with a sphere
+-- Incidence with a sphere
 -- We move the ray and sphere so that the sphere's center is
 -- at (0,0,0). This way the quadratic equation is simpler.
 incidence
@@ -152,6 +168,7 @@ incidence
     Nothing
 
 
+-- Tell the color seen by a single ray
 renderPixel :: Ray -> Scene -> Color
 
 renderPixel ray (Scene objs amb bg)
@@ -164,16 +181,17 @@ renderPixel ray (Scene objs amb bg)
 render :: Scene -> Camera -> [(Point,Color)]
 
 render scene cam@(Camera cam_p cam_dir cam_w cam_h cam_dist cam_r) =
-    [(p, renderPixel (Ray cp (vector cp p))) | p <- [Point x y | x <- [0..cam_w/cam_r], y <- [0..cam_h/cam_r]]]
+    [(p, renderPixel (Ray cp (vector cp p))) | p <- [Point x y | x <- [0..], y <- [0..]]]
     where
     cp = camera_position cam
+
 
 main = do
     print $ render
         (Scene
             [Object
-                (Sphere (Point 0 0 10) 2)
-                (Finish 0 0 (Color 0 0.7 0) (Color 0 0 0) (Color 0 0 0))] -- Green sphere
+                Sphere
+                (Finish (Color 0 0.7 0) (Color 0 0 0) (Color 0 0 0) 0 0 0)] -- Green sphere
             (Color 0.7 0.7 0.7) -- Ambient white light
             (Color 0.3 0.3 0.8) -- Background is light green
         )
