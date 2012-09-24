@@ -1,5 +1,6 @@
 import Data.List
 import Data.Maybe
+import qualified Graphics.GD as GD
 
 -- Color in R G B format
 -- values ranges from 0 to 1
@@ -198,19 +199,20 @@ renderPixel ray (Scene objs amb bg)
         i = firstHit ray objs
 
 
-render :: Scene -> Camera -> [(Point,Color)]
+render :: Scene -> Camera -> [((Int, Int),Color)]
 
 render scene cam@(Camera cam_p cam_dir cam_w cam_h cam_dist cam_r) =
     [
-        (p, renderPixel (Ray cam_p (vector cam_p p)) scene) |
-        p <- [Point x y (vector_z cam_dir) | x <- [-10,-9.98..10], y <- [-10,-9.98..10]] -- Always looks at 0,0,cam_dir
+        ((x, y), renderPixel (Ray cam_p (vector cam_p p)) scene) |
+        (p, (x, y)) <- [(Point x y (vector_z cam_dir), (x, y)) | x <- [0..499], y <- [0..499]] -- Always looks at 0,0,cam_dir
     ]
 
 
 main :: IO ()
 
 main = do
-    print $ render
+    image <- GD.newImage (500, 500)
+    mapM_ (\((x, y), c) -> GD.setPixel (x, y) c) render
         (Scene
             [Object
                 Sphere
@@ -223,3 +225,4 @@ main = do
             (Vector 0 0 1)
             20 20 5 1
         )
+    GD.savePngFile "mandelbrot.png" image
