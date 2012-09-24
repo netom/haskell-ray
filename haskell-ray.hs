@@ -204,7 +204,7 @@ render scene cam@(Camera cam_p cam_dir cam_w cam_h cam_dist cam_r) =
     [(p, renderPixel (Ray cam_p (vector cam_p p))) | p <- [Point x y | x <- [0..], y <- [0..]]]
 
 
-main : IO ()
+main :: IO ()
 
 main = do
     print $ render
