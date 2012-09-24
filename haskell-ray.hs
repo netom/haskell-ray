@@ -2,6 +2,13 @@ import Data.List
 import Data.Maybe
 import qualified Graphics.GD as GD
 
+-- TODO: figure out transformations.
+-- How povray does it?
+-- Where is the camera?
+-- What is the default canvas distance?
+-- how large is the canvas?
+-- How the scene is set up by default?
+
 -- Color in R G B format
 -- values ranges from 0 to 1
 data Color = Color Float Float Float deriving (Show)
