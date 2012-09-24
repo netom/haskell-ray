@@ -1,3 +1,5 @@
+import Data.List
+
 -- Color in R G B format
 -- values ranges from 0 to 1
 data Color = Color {
@@ -67,14 +69,14 @@ data Camera = Camera {
     camera_direction :: Vector,
     camera_canvas_width :: Float,
     camera_canvas_height :: Float,
-    camera_canves_distance :: Float,
+    camera_canvas_distance :: Float,
     camera_resolution :: Float -- 1/pixel
 } deriving (Show)
 
 -- Represents a scene (list of objects)
 data Scene = Scene {
-    scene_objects :: [Object] -- List of objects
-    scene_ambient :: Color    -- Ambient light
+    scene_objects :: [Object], -- List of objects
+    scene_ambient :: Color,    -- Ambient light
     scene_background :: Color -- Background color
 } deriving (Show)
 
@@ -101,16 +103,16 @@ distance (Point x1 y1 z1) (Point x2 y2 z2) =
 
 -- Returns the closest point to a given point from a point list
 closestPoint :: Point -> [Point] -> Point
-closestPoint p points = snd . minimum $ (map (\x -> (distance p x, x)) points)
+closestPoint p points = foldl1' (\p1 p2 -> if distance p2 p < distance p1 p then p2 else p1) points
 
 -- Returns the closest object to a ray base in the direction of the ray
 -- Todo: we should work with shapes here, not objects
 firstHit :: Ray -> [Object] -> Maybe Object
 firstHit r@(Ray p _) ol
     | distances == [] = Nothing
-    | otherwise       = Just $ snd . minimum $ zip (distances) ol
+    | otherwise       = Just $ snd . minimum $ zip (distances) ol -- TODO: use fold
     where
-        distances = map (\(Just p)->p) (filter (/= Nothing) (map (intersection r . (\(Object s _) -> s)) ol))
+        distances = map (\(Just p)->p) (filter (/= Nothing) (map (incidence r . (\(Object s _) -> s)) ol))
 
 -- Calculates the intersection of a ray and a shape.
 -- Returns the closest intersection to the starting
@@ -153,25 +155,24 @@ renderPixel :: Ray -> Scene -> Color
 
 renderPixel ray (Scene objs amb bg)
     | int == Nothing = bg
-    | otherwise   = let Just (Object _ (Material _ _ c _ _)) = int in c
+    | otherwise   = let Just (Object _ (Finish _ _ c _ _)) = int in c
     where
         int = firstHit ray objs
 
 
 render :: Scene -> Camera -> [(Point,Color)]
 
-render scene cam =
+render scene cam@(Camera cam_p cam_dir cam_w cam_h cam_dist cam_r) =
+    [(p, renderPixel (Ray cp (vector cp p))) | p <- [Point x y | x <- [0..cam_w/cam_r], y <- [0..cam_h/cam_r]]]
     where
-    rays = map
-        (\p -> Ray (camera_position cam) $ vector (camera_position cam) p)
-        [Point ()]
+    cp = camera_position cam
 
 main = do
     print $ render
         (Scene
             [Object
                 (Sphere (Point 0 0 10) 2)
-                (Material 0 0 (Color 0 0.7 0) (Color 0 0 0) (Color 0 0 0))] -- Green sphere
+                (Finish 0 0 (Color 0 0.7 0) (Color 0 0 0) (Color 0 0 0))] -- Green sphere
             (Color 0.7 0.7 0.7) -- Ambient white light
             (Color 0.3 0.3 0.8) -- Background is light green
         )
