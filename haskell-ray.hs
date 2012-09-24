@@ -201,7 +201,10 @@ renderPixel ray (Scene objs amb bg)
 render :: Scene -> Camera -> [(Point,Color)]
 
 render scene cam@(Camera cam_p cam_dir cam_w cam_h cam_dist cam_r) =
-    [(p, renderPixel (Ray cam_p (vector cam_p p))) | p <- [Point x y | x <- [0..], y <- [0..]]]
+    [
+        (p, renderPixel (Ray cam_p (vector cam_p p)) scene) |
+        p <- [Point x y (vector_z cam_dir) | x <- [-10,-9.98..10], y <- [-10,-9.98..10]] -- Always looks at 0,0,cam_dir
+    ]
 
 
 main :: IO ()
