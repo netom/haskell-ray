@@ -17,6 +17,36 @@ data Point = Point Float Float Float deriving (Show)
 
 data Vector = Vector Float Float Float deriving (Show)
 
+data Transformation = Transformation {
+    a11 :: Float, a12 :: Float, a13 :: Float, 
+    a21 :: Float, a22 :: Float, a23 :: Float, 
+    a31 :: Float, a32 :: Float, a33 :: Float
+} deriving (Show)
+
+class Transformable t where
+    (<*>) :: Transformation -> t -> t
+
+infixl 7 <*>
+
+
+instance Transformable Vector where
+    (<*>) t (Vector x y z) = Vector
+        ((a11 t)*x+(a12 t)*y+(a13 t)*z)
+        ((a21 t)*x+(a22 t)*y+(a23 t)*z)
+        ((a31 t)*x+(a32 t)*y+(a33 t)*z)
+
+instance Transformable Point where
+    (<*>) t (Point x y z) = Point
+        ((a11 t)*x+(a12 t)*y+(a13 t)*z)
+        ((a21 t)*x+(a22 t)*y+(a23 t)*z)
+        ((a31 t)*x+(a32 t)*y+(a33 t)*z)
+
+(<+>) :: Vector -> Vector -> Vector
+(<+>) (Vector x1 y1 z1) (Vector x2 y2 z2) = Vector (x1+x2) (y1+y2) (z1+z2)
+
+infixl 6 <+>
+
+
 data Shape =
     Cube  -- Unit cube 
     | Sphere -- Unit sphere
@@ -172,7 +202,8 @@ renderPixel ray (Scene objs amb bg)
 -- Returns coordinates on the image, and the rays through those
 -- coordinates
 rays :: Camera -> [((Int,Int),Ray)]
-rays _ = [((x, y), Ray (Point 0 0 0) (Vector 0 0 0))| x <- [0..1], y <- [0..1]] -- TODO
+rays (Camera p c w h r) =
+    [((x, y), Ray p (Vector 0 0 0))| x <- [0..1], y <- [0..1]] -- TODO
 
 render :: Scene -> Camera -> [((Int, Int),Color)]
 

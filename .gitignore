@@ -1,2 +1,5 @@
 dist
 *.png
+*.o
+*.hi
+haskell-ray
