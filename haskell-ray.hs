@@ -62,11 +62,10 @@ data Ray = Ray {
 
 
 data Camera = Camera {
-    camera_position  :: Point,
-    camera_direction :: Vector,
+    camera_position :: Point,
+    camera_canvas_center :: Point,
     camera_canvas_width :: Float,
     camera_canvas_height :: Float,
-    camera_canvas_distance :: Float,
     camera_resolution :: Float -- 1/pixel
 } deriving (Show)
 
@@ -172,8 +171,8 @@ renderPixel ray (Scene objs amb bg)
 
 -- Returns coordinates on the image, and the rays through those
 -- coordinates
-rays :: Camera -> [((x,y),Ray)]
-rays _ = [] -- TODO
+rays :: Camera -> [((Int,Int),Ray)]
+rays _ = [((x, y), Ray (Point 0 0 0) (Vector 0 0 0))| x <- [0..1], y <- [0..1]] -- TODO
 
 render :: Scene -> Camera -> [((Int, Int),Color)]
 
@@ -195,6 +194,6 @@ main = do
                 (Color 0.7 0.7 0.7)
                 (Color 0.3 0.3 0.8)
             )
-            (Camera (Point 0 0 0) (Vector 0 0 1) 20 20 5 1)
+            (Camera (Point 0 0 0) (Point 0 0 5) 20 20 1)
         )
-    GD.savePngFile "mandelbrot.png" image
+    GD.savePngFile "raytracer.png" image
