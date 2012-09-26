@@ -2,52 +2,43 @@ import Data.List
 import Data.Maybe
 import qualified Graphics.GD as GD
 
--- TODO: figure out transformations.
--- How povray does it?
--- Where is the camera?
--- What is the default canvas distance?
--- how large is the canvas?
--- How the scene is set up by default?
-
 -- Color in R G B format
 -- values ranges from 0 to 1
 data Color = Color Float Float Float deriving (Show)
 
-data Point = Point Float Float Float deriving (Show)
-
-origo = Point 0 0 0
-
-data Vector = Vector Float Float Float deriving (Show)
-
 data Transformation = Transformation {
-    a11 :: Float, a12 :: Float, a13 :: Float, 
-    a21 :: Float, a22 :: Float, a23 :: Float, 
-    a31 :: Float, a32 :: Float, a33 :: Float
+    a11 :: Float, a12 :: Float, a13 :: Float, a14 :: Float,
+    a21 :: Float, a22 :: Float, a23 :: Float, a24 :: Float,
+    a31 :: Float, a32 :: Float, a33 :: Float, a34 :: Float,
+    a41 :: Float, a42 :: Float, a43 :: Float, a44 :: Float
 } deriving (Show)
 
-class Transformable t where
-    (<*>) :: Transformation -> t -> t
+-- Vector with homogeneous coordinates
+-- x, y, z, h
+data Vector = Vector Float Float Float Float deriving (Show)
+
+origo = Vector 0 0 0 1
+
+(<*>) t (Vector x y z h) = Vector
+    ((a11 t)*x+(a12 t)*y+(a13 t)*z+(a14 t)*h)
+    ((a21 t)*x+(a22 t)*y+(a23 t)*z+(a24 t)*h)
+    ((a31 t)*x+(a32 t)*y+(a33 t)*z+(a34 t)*h)
+    ((a41 t)*x+(a42 t)*y+(a43 t)*z+(a44 t)*h)
 
 infixl 7 <*>
 
-
-instance Transformable Vector where
-    (<*>) t (Vector x y z) = Vector
-        ((a11 t)*x+(a12 t)*y+(a13 t)*z)
-        ((a21 t)*x+(a22 t)*y+(a23 t)*z)
-        ((a31 t)*x+(a32 t)*y+(a33 t)*z)
-
-instance Transformable Point where
-    (<*>) t (Point x y z) = Point
-        ((a11 t)*x+(a12 t)*y+(a13 t)*z)
-        ((a21 t)*x+(a22 t)*y+(a23 t)*z)
-        ((a31 t)*x+(a32 t)*y+(a33 t)*z)
-
 (<+>) :: Vector -> Vector -> Vector
-(<+>) (Vector x1 y1 z1) (Vector x2 y2 z2) = Vector (x1+x2) (y1+y2) (z1+z2)
+(<+>) (Vector x1 y1 z1 h1) (Vector x2 y2 z2 h2) = Vector (x1+x2) (y1+y2) (z1+z2) 1
 
 infixl 6 <+>
 
+(<->) :: Vector -> Vector -> Vector
+(<->) (Vector x1 y1 z1 h1) (Vector x2 y2 z2 h2) = Vector (x1-x2) (y1-y2) (z1-z2) 1
+
+infixl 6 <->
+
+normalize :: Vector -> Vector
+normalize (Vector x y z h) = Vector (x/h) (y/h) (z/h) 1
 
 data Shape =
     Cube  -- Unit cube 
@@ -72,7 +63,7 @@ data Object = Object {
 
 
 data Light = Light {
-    light_position :: Point,
+    light_position :: Vector,
     light_color :: Color
 } deriving (Show)
 
@@ -81,14 +72,14 @@ data Light = Light {
 -- with an Incidence object
 data Incidence = Incidence {
     incidence_object :: Object,
-    incidence_point  :: Point,
+    incidence_vector  :: Vector,
     incidence_normal :: Vector
 } deriving (Show)
 
 
 -- Represents a ray (semi line)
 data Ray = Ray {
-    ray_origin :: Point,
+    ray_origin :: Vector,
     ray_direction :: Vector
 } deriving (Show)
 
@@ -109,12 +100,6 @@ data Scene = Scene {
 } deriving (Show)
 
 
--- Returns a vector that represents the direction from
--- one given point to the other
-vector :: Point -> Point -> Vector
-vector (Point x1 y1 z1) (Point x2 y2 z2) = Vector (x2-x1) (y2-y1) (z2-z1)
-
-
 -- Solves a quadratic equation. The result is the list of
 -- distinct solutions (two element, one element, or empty list)
 solveQuadratic :: Float -> Float -> Float -> [Float]
@@ -127,15 +112,14 @@ solveQuadratic a b c
         solveWithFunc f = (-b `f` sqrt(d))/(2*a)
 
 
--- Calculates the distance of two points in 3D space
-distance :: Point -> Point -> Float
-distance (Point x1 y1 z1) (Point x2 y2 z2) =
-    sqrt((x1-x2)**2+(y1-y2)**2+(z1-z2)**2)
-
+-- Calculates the length of a vector
+-- does not care about the h coordinate, it must be 1!
+vlen :: Vector -> Float
+vlen (Vector x y z h) = sqrt(x**2+y**2+z**2)
 
 -- Returns the closest point to a given point from a point list
-closestPoint :: Point -> [Point] -> Point
-closestPoint p points = foldl1' (\p1 p2 -> if distance p2 p < distance p1 p then p2 else p1) points
+closestVector :: Vector -> [Vector] -> Vector
+closestVector v vectors = foldl1' (\v1 v2 -> if vlen (v2<->v) < vlen (v1<->v) then v2 else v1) vectors
 
 
 -- Returns the closest object to a ray base in the direction of the ray
@@ -144,40 +128,38 @@ firstHit :: Ray -> [Object] -> Maybe Incidence
 firstHit ray objects = foldl' (closerIncidence ray) Nothing objects
     where
         closerIncidence :: Ray -> Maybe Incidence -> Object -> Maybe Incidence
-        closerIncidence r@(Ray p _) i1 o2
+        closerIncidence r@(Ray v _) i1 o2
             | isNothing i1 = i2
             | isNothing i2 = i1
             | d1 < d2      = i1
             | otherwise    = i2
             where
                 i2 = incidence r o2
-                d1 = distance p (incidence_point $ fromJust i1)
-                d2 = distance p (incidence_point $ fromJust i2)
+                d1 = vlen $ v <-> (incidence_vector $ fromJust i1)
+                d2 = vlen $ v <-> (incidence_vector $ fromJust i2)
 
 
 -- Calculates the intersection of a ray and a shape.
 -- Returns the closest intersection to the starting
--- point of the ray.
+-- Vector of the ray.
 incidence :: Ray -> Object -> Maybe Incidence
 
--- Incidence with a sphere
--- We move the ray and sphere so that the sphere's center is
--- at (0,0,0). This way the quadratic equation is simpler.
+-- Incidence with a unit sphere at origo
 incidence
-    (Ray (Point rx ry rz) (Vector rdx rdy rdz))
+    (Ray (Vector rx ry rz _) (Vector rdx rdy rdz _))
     obj@(Object Sphere _) =
 
-    if isNothing point
+    if isNothing vector
     then Nothing
-    else Just $ Incidence obj (fromJust point) (Vector px py pz)
+    else Just $ Incidence obj (fromJust vector) (Vector px py pz 1)
     where
-        (Point px py pz) = fromJust point
-        point =
+        (Vector px py pz _) = fromJust vector
+        vector =
             if solutions == []
             then Nothing
             else
                 let x = minimum solutions
-                in Just $ Point (x*rdx+rx) (x*rdy+ry) (x*rdz+rz)
+                in Just $ Vector (x*rdx+rx) (x*rdy+ry) (x*rdz+rz) 1
         solutions = filter (> 0) $ solveQuadratic
             (rdx**2+rdy**2+rdz**2)
             (2*rx*rdx+2*ry*rdy+2*rz*rdz)
@@ -185,7 +167,7 @@ incidence
 
 -- Intersection with a cube
 incidence
-    (Ray (Point rx ry rz) (Vector rdx rdy rdz))
+    (Ray (Vector rx ry rz _) (Vector rdx rdy rdz _))
     (Object Cube _) =
 
     Nothing
@@ -205,7 +187,7 @@ renderPixel ray (Scene objs amb bg)
 rays :: Camera -> [((Int,Int),Ray)]
 rays (Camera w h r) =
     [
-        ((x, y), Ray origo (Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) 1) )
+        ((x, y), Ray origo (Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) 1 1) )
         | x <- [0..round(w*r)], y <- [0..round(h*r)]
     ]
 
