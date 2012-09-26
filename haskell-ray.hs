@@ -13,6 +13,20 @@ data Transformation = Transformation {
     a41 :: Float, a42 :: Float, a43 :: Float, a44 :: Float
 } deriving (Show)
 
+stay :: Transformation
+stay = Transformation
+    1 0 0 0
+    0 1 0 0
+    0 0 1 0
+    0 0 0 1
+
+translate :: Float -> Float -> Float -> Transformation
+translate x y z = Transformation
+    1 0 0 (-x)
+    0 1 0 (-y)
+    0 0 1 (-z)
+    0 0 0 1
+
 -- Vector with homogeneous coordinates
 -- x, y, z, h
 data Vector = Vector Float Float Float Float deriving (Show)
@@ -58,7 +72,8 @@ data Finish = Finish {
 
 data Object = Object {
     object_shape  :: Shape,
-    object_finish :: Finish
+    object_finish :: Finish,
+    object_trans :: Transformation
 } deriving (Show)
 
 
@@ -124,6 +139,7 @@ closestVector v vectors = foldl1' (\v1 v2 -> if vlen (v2<->v) < vlen (v1<->v) th
 
 -- Returns the closest object to a ray base in the direction of the ray
 -- Todo: we should work with shapes here, not objects
+-- This takes care of the object transformations
 firstHit :: Ray -> [Object] -> Maybe Incidence
 firstHit ray objects = foldl' (closerIncidence ray) Nothing objects
     where
@@ -134,7 +150,7 @@ firstHit ray objects = foldl' (closerIncidence ray) Nothing objects
             | d1 < d2      = i1
             | otherwise    = i2
             where
-                i2 = incidence r o2
+                i2 = incidence (Ray (object_trans o2 <*> ray_origin r) (ray_direction r)) o2 -- Todo: refactor this to separate function
                 d1 = vlen $ v <-> (incidence_vector $ fromJust i1)
                 d2 = vlen $ v <-> (incidence_vector $ fromJust i2)
 
@@ -147,7 +163,7 @@ incidence :: Ray -> Object -> Maybe Incidence
 -- Incidence with a unit sphere at origo
 incidence
     (Ray (Vector rx ry rz _) (Vector rdx rdy rdz _))
-    obj@(Object Sphere _) =
+    obj@(Object Sphere _ t) =
 
     if isNothing vector
     then Nothing
@@ -168,7 +184,7 @@ incidence
 -- Intersection with a cube
 incidence
     (Ray (Vector rx ry rz _) (Vector rdx rdy rdz _))
-    (Object Cube _) =
+    (Object Cube _ _) =
 
     Nothing
 
@@ -178,7 +194,7 @@ renderPixel :: Ray -> Scene -> Color
 
 renderPixel ray (Scene objs amb bg)
     | isNothing i = bg
-    | otherwise   = let Just (Incidence (Object _ (Finish c _ _ _ _ _)) _ _) = i in c
+    | otherwise   = let Just (Incidence (Object _ (Finish c _ _ _ _ _) _) _ _) = i in c
     where
         i = firstHit ray objs
 
@@ -207,7 +223,7 @@ main = do
         (\((x, y), (Color r g b)) -> GD.setPixel (x, y) (GD.rgb (round (r*256)) (round (g*256)) (round (b*256))) image)
         (render
             (Scene
-                [Object Sphere (Finish (Color 0 0.7 0) (Color 0 0 0) (Color 0 0 0) 0 0 0)]
+                [Object Sphere (Finish (Color 0 0.7 0) (Color 0 0 0) (Color 0 0 0) 0 0 0) (translate 0 0 2)]
                 (Color 0.7 0.7 0.7)
                 (Color 0.3 0.3 0.8)
             )
