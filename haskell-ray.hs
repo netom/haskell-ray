@@ -15,6 +15,8 @@ data Color = Color Float Float Float deriving (Show)
 
 data Point = Point Float Float Float deriving (Show)
 
+origo = Point 0 0 0
+
 data Vector = Vector Float Float Float deriving (Show)
 
 data Transformation = Transformation {
@@ -90,10 +92,9 @@ data Ray = Ray {
     ray_direction :: Vector
 } deriving (Show)
 
-
+-- Camera is always at (0,0,0)
+-- and the canvas center is always at (0,0,1)
 data Camera = Camera {
-    camera_position :: Point,
-    camera_canvas_center :: Point,
     camera_canvas_width :: Float,
     camera_canvas_height :: Float,
     camera_resolution :: Float -- 1/pixel
@@ -202,8 +203,11 @@ renderPixel ray (Scene objs amb bg)
 -- Returns coordinates on the image, and the rays through those
 -- coordinates
 rays :: Camera -> [((Int,Int),Ray)]
-rays (Camera p c w h r) =
-    [((x, y), Ray p (Vector 0 0 0))| x <- [0..1], y <- [0..1]] -- TODO
+rays (Camera w h r) =
+    [
+        ((x, y), Ray origo (Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) 1) )
+        | x <- [0..round(w*r)], y <- [0..round(h*r)]
+    ]
 
 render :: Scene -> Camera -> [((Int, Int),Color)]
 
@@ -225,6 +229,6 @@ main = do
                 (Color 0.7 0.7 0.7)
                 (Color 0.3 0.3 0.8)
             )
-            (Camera (Point 0 0 0) (Point 0 0 5) 20 20 1)
+            (Camera 20 20 25)
         )
     GD.savePngFile "raytracer.png" image
