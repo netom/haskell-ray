@@ -8,12 +8,10 @@ import Raygeo
 -- values ranges from 0 to 1
 data Color = Color Float Float Float deriving (Show)
 
-
 data Shape =
     Cube  -- Unit cube 
     | Sphere -- Unit sphere
     deriving (Show)
-
 
 data Finish = Finish {
     finish_ambient_color :: Color,
@@ -24,13 +22,11 @@ data Finish = Finish {
     finish_refraction    :: Float  -- 1: air
 } deriving (Show)
 
-
 data Object = Object {
     object_shape  :: Shape,
     object_finish :: Finish,
     object_trans :: Transformation
 } deriving (Show)
-
 
 data Light =
     Spot {
@@ -39,7 +35,6 @@ data Light =
     }
     deriving (Show)
 
-
 -- When a ray hit something, it expressed
 -- with an Incidence object
 data Incidence = Incidence {
@@ -47,7 +42,6 @@ data Incidence = Incidence {
     incidence_vector  :: Vector,
     incidence_normal :: Vector
 } deriving (Show)
-
 
 -- Represents a ray (semi line)
 data Ray = Ray {
@@ -63,7 +57,6 @@ data Camera = Camera {
     camera_resolution :: Float -- 1/pixel
 } deriving (Show)
 
-
 -- Represents a scene (list of objects)
 data Scene = Scene {
     scene_objects :: [Object], -- List of objects
@@ -71,7 +64,6 @@ data Scene = Scene {
     scene_ambient :: Color,    -- Ambient light
     scene_background :: Color  -- Background color
 } deriving (Show)
-
 
 -- Solves a quadratic equation. The result is the list of
 -- distinct solutions (two element, one element, or empty list)
@@ -83,7 +75,6 @@ solveQuadratic a b c
     where
         d = b**2 - 4*a*c
         solveWithFunc f = (-b `f` sqrt(d))/(2*a)
-
 
 -- Returns the closest object to a ray base in the direction of the ray
 -- Todo: we should work with shapes here, not objects
@@ -99,8 +90,8 @@ firstHit ray objects = foldl' (closerIncidence ray) Nothing objects
             | otherwise    = i2
             where
                 t2 = object_trans o2
-                i2 = incidence (Ray (normalize $ trans t2 (ray_origin r)) (normalize $ trans (stripTrans t2) (ray_direction r))) o2
-                --i2t = Just $ Incidence i2o (itrans t2 i2v) i2n -- TODO: itt mátrixot kellene invertálni. szopó.
+                i2 = incidence (Ray (normalize $ itrans t2 (ray_origin r)) (normalize $ itrans (stripTrans t2) (ray_direction r))) o2
+                --i2t = Just $ Incidence i2o (trans t2 i2v) i2n -- TODO: itt mátrixot kellene invertálni. szopó.
                 d1 = vlen $ sub v (incidence_vector $ fromJust i1)
                 d2 = vlen $ sub v (incidence_vector $ fromJust i2)
 
