@@ -27,12 +27,20 @@ translate x y z = Transformation
     0 0 1 (-z)
     0 0 0 1
 
+stripTrans :: Transformation -> Transformation
+stripTrans t = Transformation
+    (a11 t) (a12 t) (a12 t) 0
+    (a21 t) (a22 t) (a23 t) 0
+    (a31 t) (a32 t) (a33 t) 0
+    0       0       0       1
+
 -- Vector with homogeneous coordinates
 -- x, y, z, h
 data Vector = Vector Float Float Float Float deriving (Show)
 
 origo = Vector 0 0 0 1
 
+(<*>) :: Transformation -> Vector -> Vector
 (<*>) t (Vector x y z h) = Vector
     ((a11 t)*x+(a12 t)*y+(a13 t)*z+(a14 t)*h)
     ((a21 t)*x+(a22 t)*y+(a23 t)*z+(a24 t)*h)
@@ -40,6 +48,14 @@ origo = Vector 0 0 0 1
     ((a41 t)*x+(a42 t)*y+(a43 t)*z+(a44 t)*h)
 
 infixl 7 <*>
+
+(<.>) :: Vector -> Vector -> Float
+(<.>) (Vector x1 y1 z1 h1) (Vector x2 y2 z2 h2) = x1*x2+y1*y2+z1*z2
+
+infixl 7 <.>
+
+vcosphi :: Vector -> Vector -> Float
+vcosphi v1 v2 = v1 <.> v2 / (vlen v1 * vlen v2)
 
 (<+>) :: Vector -> Vector -> Vector
 (<+>) (Vector x1 y1 z1 h1) (Vector x2 y2 z2 h2) = Vector (x1+x2) (y1+y2) (z1+z2) 1
@@ -77,10 +93,12 @@ data Object = Object {
 } deriving (Show)
 
 
-data Light = Light {
-    light_position :: Vector,
-    light_color :: Color
-} deriving (Show)
+data Light =
+    Spot {
+        light_position :: Vector,
+        light_color :: Color
+    }
+    deriving (Show)
 
 
 -- When a ray hit something, it expressed
@@ -110,8 +128,9 @@ data Camera = Camera {
 -- Represents a scene (list of objects)
 data Scene = Scene {
     scene_objects :: [Object], -- List of objects
+    scene_light :: Light,      -- Light
     scene_ambient :: Color,    -- Ambient light
-    scene_background :: Color -- Background color
+    scene_background :: Color  -- Background color
 } deriving (Show)
 
 
@@ -145,14 +164,16 @@ firstHit ray objects = foldl' (closerIncidence ray) Nothing objects
     where
         closerIncidence :: Ray -> Maybe Incidence -> Object -> Maybe Incidence
         closerIncidence r@(Ray v _) i1 o2
-            | isNothing i1 = i2
+            | isNothing i1 = i2t
             | isNothing i2 = i1
             | d1 < d2      = i1
-            | otherwise    = i2
+            | otherwise    = i2t
             where
-                i2 = incidence (Ray (object_trans o2 <*> ray_origin r) (ray_direction r)) o2 -- Todo: refactor this to separate function
+                t2 = object_trans o2
+                i2@(Incidence i2o i2v i2n) = incidence (Ray (normalize $ t2 <*> ray_origin r) (normalize $ stripTrans t2 <*> ray_direction r)) o2
+                i2t = Just $ Incidence i2o (t2 <*> i2v) i2n -- TODO: itt mátrixot kellene invertálni. szopó.
                 d1 = vlen $ v <-> (incidence_vector $ fromJust i1)
-                d2 = vlen $ v <-> (incidence_vector $ fromJust i2)
+                d2 = vlen $ v <-> (incidence_vector $ fromJust i2t)
 
 
 -- Calculates the intersection of a ray and a shape.
@@ -164,7 +185,6 @@ incidence :: Ray -> Object -> Maybe Incidence
 incidence
     (Ray (Vector rx ry rz _) (Vector rdx rdy rdz _))
     obj@(Object Sphere _ t) =
-
     if isNothing vector
     then Nothing
     else Just $ Incidence obj (fromJust vector) (Vector px py pz 1)
@@ -176,7 +196,7 @@ incidence
             else
                 let x = minimum solutions
                 in Just $ Vector (x*rdx+rx) (x*rdy+ry) (x*rdz+rz) 1
-        solutions = filter (> 0) $ solveQuadratic
+        solutions = filter (> 0.0000001) $ solveQuadratic
             (rdx**2+rdy**2+rdz**2)
             (2*rx*rdx+2*ry*rdy+2*rz*rdz)
             (rx**2+ry**2+rz**2-1)
@@ -188,22 +208,29 @@ incidence
 
     Nothing
 
+-- Tells wether there is an obstacle between two points
+isObstructed :: Vector -> Vector -> [Object] -> Bool
+isObstructed v1 v2 objs = isJust $ firstHit (Ray v1 (v2 <-> v1)) objs
 
 -- Tell the color seen by a single ray
 renderPixel :: Ray -> Scene -> Color
 
-renderPixel ray (Scene objs amb bg)
+renderPixel ray (Scene objs (Spot lv (Color lr lg lb)) amb bg)
     | isNothing i = bg
-    | otherwise   = let Just (Incidence (Object _ (Finish c _ _ _ _ _) _) _ _) = i in c
+    | isObstructed i_vect lv objs = c -- TODO: better obstruction detection from a surface
+    | otherwise = Color (max (dr*lr*lint) ar) (max (dg*lg*lint) ag) (max (db*lb*lint) ab) -- FUJJJJJJ
     where
         i = firstHit ray objs
+        Just (Incidence (Object _ (Finish c@(Color ar ag ab) (Color dr dg db) _ _ _ _) _) _ _) = i
+        Just (Incidence i_obj i_vect i_norm) = i
+        lint = vcosphi lv i_norm
 
 -- Returns coordinates on the image, and the rays through those
 -- coordinates
 rays :: Camera -> [((Int,Int),Ray)]
 rays (Camera w h r) =
     [
-        ((x, y), Ray origo (Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) 1 1) )
+        ((x, y), Ray (Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) 1 1) (Vector 0 0 1 1) )
         | x <- [0..round(w*r)], y <- [0..round(h*r)]
     ]
 
@@ -220,13 +247,17 @@ main :: IO ()
 main = do
     image <- GD.newImage (500, 500)
     mapM_
-        (\((x, y), (Color r g b)) -> GD.setPixel (x, y) (GD.rgb (round (r*256)) (round (g*256)) (round (b*256))) image)
+        (\((x, y), (Color r g b)) -> GD.setPixel (y, 499-x) (GD.rgb (round (r*256)) (round (g*256)) (round (b*256))) image)
         (render
             (Scene
-                [Object Sphere (Finish (Color 0 0.7 0) (Color 0 0 0) (Color 0 0 0) 0 0 0) (translate 0 0 2)]
+                [
+                    Object Sphere (Finish (Color 0 0.1 0) (Color 0.2 0.7 0.2) (Color 0 0 0) 0 0 0) (translate 1 0 2),
+                    Object Sphere (Finish (Color 0 0 0.1) (Color 0.2 0.2 0.7) (Color 0 0 0) 0 0 0) (translate (-1) 0 2)
+                ]
+                (Spot (Vector 30 0 0 1) (Color 1 1 1))
                 (Color 0.7 0.7 0.7)
-                (Color 0.3 0.3 0.8)
+                (Color 0.1 0.1 0.1)
             )
-            (Camera 20 20 25)
+            (Camera 10 10 50)
         )
     GD.savePngFile "raytracer.png" image
