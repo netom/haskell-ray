@@ -61,6 +61,7 @@ stripTrans t = Transformation
 -- x, y, z, h
 data Vector = Vector Float Float Float Float deriving (Show)
 
+origo :: Vector
 origo = Vector 0 0 0 1
 
 trans :: Transformation -> Vector -> Vector
@@ -78,16 +79,16 @@ itrans t (Vector x y z h) = Vector
     ((ia41 t)*x+(ia42 t)*y+(ia43 t)*z+(ia44 t)*h)
 
 dotp :: Vector -> Vector -> Float
-dotp (Vector x1 y1 z1 h1) (Vector x2 y2 z2 h2) = x1*x2+y1*y2+z1*z2
+dotp (Vector x1 y1 z1 _) (Vector x2 y2 z2 _) = x1*x2+y1*y2+z1*z2
 
 vcosphi :: Vector -> Vector -> Float
 vcosphi v1 v2 = dotp v1 v2 / (vlen v1 * vlen v2)
 
 add :: Vector -> Vector -> Vector
-add (Vector x1 y1 z1 h1) (Vector x2 y2 z2 h2) = Vector (x1+x2) (y1+y2) (z1+z2) 1
+add (Vector x1 y1 z1 _) (Vector x2 y2 z2 _) = Vector (x1+x2) (y1+y2) (z1+z2) 1
 
 sub :: Vector -> Vector -> Vector
-sub (Vector x1 y1 z1 h1) (Vector x2 y2 z2 h2) = Vector (x1-x2) (y1-y2) (z1-z2) 1
+sub (Vector x1 y1 z1 _) (Vector x2 y2 z2 _) = Vector (x1-x2) (y1-y2) (z1-z2) 1
 
 normalize :: Vector -> Vector
 normalize (Vector x y z h) = Vector (x/h) (y/h) (z/h) 1
@@ -95,7 +96,7 @@ normalize (Vector x y z h) = Vector (x/h) (y/h) (z/h) 1
 -- Calculates the length of a vector
 -- does not care about the h coordinate, it must be 1!
 vlen :: Vector -> Float
-vlen (Vector x y z h) = sqrt(x**2+y**2+z**2)
+vlen (Vector x y z _) = sqrt(x**2+y**2+z**2)
 
 -- Returns the closest point to a given point from a point list
 closestVector :: Vector -> [Vector] -> Vector

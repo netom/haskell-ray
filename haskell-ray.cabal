@@ -16,4 +16,4 @@ cabal-version:       >=1.8
 executable haskell-ray
   main-is:             haskell-ray.hs
   build-depends:       base ==4.5.*,gd
-  ghc-options:          -Wall -O2 -funbox-strict-fields
+  ghc-options:          -Wall -Werror -O2 -funbox-strict-fields
