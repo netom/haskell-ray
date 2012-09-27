@@ -2,73 +2,12 @@ import Data.List
 import Data.Maybe
 import qualified Graphics.GD as GD
 
+import Raygeo
+
 -- Color in R G B format
 -- values ranges from 0 to 1
 data Color = Color Float Float Float deriving (Show)
 
-data Transformation = Transformation {
-    a11 :: Float, a12 :: Float, a13 :: Float, a14 :: Float,
-    a21 :: Float, a22 :: Float, a23 :: Float, a24 :: Float,
-    a31 :: Float, a32 :: Float, a33 :: Float, a34 :: Float,
-    a41 :: Float, a42 :: Float, a43 :: Float, a44 :: Float
-} deriving (Show)
-
-stay :: Transformation
-stay = Transformation
-    1 0 0 0
-    0 1 0 0
-    0 0 1 0
-    0 0 0 1
-
-translate :: Float -> Float -> Float -> Transformation
-translate x y z = Transformation
-    1 0 0 (-x)
-    0 1 0 (-y)
-    0 0 1 (-z)
-    0 0 0 1
-
-stripTrans :: Transformation -> Transformation
-stripTrans t = Transformation
-    (a11 t) (a12 t) (a12 t) 0
-    (a21 t) (a22 t) (a23 t) 0
-    (a31 t) (a32 t) (a33 t) 0
-    0       0       0       1
-
--- Vector with homogeneous coordinates
--- x, y, z, h
-data Vector = Vector Float Float Float Float deriving (Show)
-
-origo = Vector 0 0 0 1
-
-(<*>) :: Transformation -> Vector -> Vector
-(<*>) t (Vector x y z h) = Vector
-    ((a11 t)*x+(a12 t)*y+(a13 t)*z+(a14 t)*h)
-    ((a21 t)*x+(a22 t)*y+(a23 t)*z+(a24 t)*h)
-    ((a31 t)*x+(a32 t)*y+(a33 t)*z+(a34 t)*h)
-    ((a41 t)*x+(a42 t)*y+(a43 t)*z+(a44 t)*h)
-
-infixl 7 <*>
-
-(<.>) :: Vector -> Vector -> Float
-(<.>) (Vector x1 y1 z1 h1) (Vector x2 y2 z2 h2) = x1*x2+y1*y2+z1*z2
-
-infixl 7 <.>
-
-vcosphi :: Vector -> Vector -> Float
-vcosphi v1 v2 = v1 <.> v2 / (vlen v1 * vlen v2)
-
-(<+>) :: Vector -> Vector -> Vector
-(<+>) (Vector x1 y1 z1 h1) (Vector x2 y2 z2 h2) = Vector (x1+x2) (y1+y2) (z1+z2) 1
-
-infixl 6 <+>
-
-(<->) :: Vector -> Vector -> Vector
-(<->) (Vector x1 y1 z1 h1) (Vector x2 y2 z2 h2) = Vector (x1-x2) (y1-y2) (z1-z2) 1
-
-infixl 6 <->
-
-normalize :: Vector -> Vector
-normalize (Vector x y z h) = Vector (x/h) (y/h) (z/h) 1
 
 data Shape =
     Cube  -- Unit cube 
@@ -146,16 +85,6 @@ solveQuadratic a b c
         solveWithFunc f = (-b `f` sqrt(d))/(2*a)
 
 
--- Calculates the length of a vector
--- does not care about the h coordinate, it must be 1!
-vlen :: Vector -> Float
-vlen (Vector x y z h) = sqrt(x**2+y**2+z**2)
-
--- Returns the closest point to a given point from a point list
-closestVector :: Vector -> [Vector] -> Vector
-closestVector v vectors = foldl1' (\v1 v2 -> if vlen (v2<->v) < vlen (v1<->v) then v2 else v1) vectors
-
-
 -- Returns the closest object to a ray base in the direction of the ray
 -- Todo: we should work with shapes here, not objects
 -- This takes care of the object transformations
@@ -164,16 +93,16 @@ firstHit ray objects = foldl' (closerIncidence ray) Nothing objects
     where
         closerIncidence :: Ray -> Maybe Incidence -> Object -> Maybe Incidence
         closerIncidence r@(Ray v _) i1 o2
-            | isNothing i1 = i2t
+            | isNothing i1 = i2
             | isNothing i2 = i1
             | d1 < d2      = i1
-            | otherwise    = i2t
+            | otherwise    = i2
             where
                 t2 = object_trans o2
-                i2@(Incidence i2o i2v i2n) = incidence (Ray (normalize $ t2 <*> ray_origin r) (normalize $ stripTrans t2 <*> ray_direction r)) o2
-                i2t = Just $ Incidence i2o (t2 <*> i2v) i2n -- TODO: itt mátrixot kellene invertálni. szopó.
-                d1 = vlen $ v <-> (incidence_vector $ fromJust i1)
-                d2 = vlen $ v <-> (incidence_vector $ fromJust i2t)
+                i2 = incidence (Ray (normalize $ trans t2 (ray_origin r)) (normalize $ trans (stripTrans t2) (ray_direction r))) o2
+                --i2t = Just $ Incidence i2o (itrans t2 i2v) i2n -- TODO: itt mátrixot kellene invertálni. szopó.
+                d1 = vlen $ sub v (incidence_vector $ fromJust i1)
+                d2 = vlen $ sub v (incidence_vector $ fromJust i2)
 
 
 -- Calculates the intersection of a ray and a shape.
@@ -210,7 +139,7 @@ incidence
 
 -- Tells wether there is an obstacle between two points
 isObstructed :: Vector -> Vector -> [Object] -> Bool
-isObstructed v1 v2 objs = isJust $ firstHit (Ray v1 (v2 <-> v1)) objs
+isObstructed v1 v2 objs = isJust $ firstHit (Ray v1 (sub v2 v1)) objs
 
 -- Tell the color seen by a single ray
 renderPixel :: Ray -> Scene -> Color
