@@ -54,7 +54,8 @@ data Ray = Ray {
 data Camera = Camera {
     camera_canvas_width :: Float,
     camera_canvas_height :: Float,
-    camera_resolution :: Float -- 1/pixel
+    camera_resolution :: Float, -- 1/pixel
+    camera_distance :: Float
 } deriving (Show)
 
 -- Represents a scene (list of objects)
@@ -117,7 +118,7 @@ incidence
             else
                 let x = minimum solutions
                 in Just $ Vector (x*rdx+rx) (x*rdy+ry) (x*rdz+rz) 1
-        solutions = filter (> 0.0000001) $ solveQuadratic
+        solutions = filter (> 0.0001) $ solveQuadratic
             (rdx**2+rdy**2+rdz**2)
             (2*rx*rdx+2*ry*rdy+2*rz*rdz)
             (rx**2+ry**2+rz**2-1)
@@ -139,19 +140,19 @@ renderPixel :: Ray -> Scene -> Color
 renderPixel ray (Scene objs (Spot lv (Color lr lg lb)) amb bg)
     | isNothing i = bg
     | isObstructed i_vect lv objs = c -- TODO: better obstruction detection from a surface
-    | otherwise = Color (max (dr*lr*lint) ar) (max (dg*lg*lint) ag) (max (db*lb*lint) ab) -- FUJJJJJJ
+    | otherwise = Color (ar+dr*lr*lint) (ag+dg*lg*lint) (ab+db*lb*lint) -- FUJJJJJJ
     where
         i = firstHit ray objs
         Just (Incidence (Object _ (Finish c@(Color ar ag ab) (Color dr dg db) _ _ _ _) _) _ _) = i
         Just (Incidence i_obj i_vect i_norm) = i
-        lint = vcosphi lv i_norm
+        lint = max 0 $ vcosphi lv i_norm
 
 -- Returns coordinates on the image, and the rays through those
 -- coordinates
 rays :: Camera -> [((Int,Int),Ray)]
-rays (Camera w h r) =
+rays (Camera w h r d) =
     [
-        ((x, y), Ray (Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) 1 1) (Vector 0 0 1 1) )
+        ((x, y), Ray (Vector 0 0 (-d) 1) (Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) d 1) )
         | x <- [0..round(w*r)], y <- [0..round(h*r)]
     ]
 
@@ -172,13 +173,16 @@ main = do
         (render
             (Scene
                 [
-                    Object Sphere (Finish (Color 0 0.1 0) (Color 0.2 0.7 0.2) (Color 0 0 0) 0 0 0) (translate 1 0 2.2),
-                    Object Sphere (Finish (Color 0 0 0.1) (Color 0.2 0.2 0.7) (Color 0 0 0) 0 0 0) (translate (-1) 0 2)
+                    Object Sphere (Finish (Color 0 0.1 0) (Color 0.2 0.7 0.2) (Color 0 0 0) 0 0 0) (translate 1 0 1.1),
+                    Object Sphere (Finish (Color 0 0 0.1) (Color 0.2 0.2 0.7) (Color 0 0 0) 0 0 0) (translate (-1) 0 1.5),
+                    Object Sphere (Finish (Color 0 0 0.1) (Color 0.7 0.2 0.2) (Color 0 0 0) 0 0 0) (translate (-6) (-6) 10),
+                    Object Sphere (Finish (Color 0 0 0.1) (Color 0.7 0.2 0.7) (Color 0 0 0) 0 0 0) (translate (6) (6) 3),
+                    Object Sphere (Finish (Color 0 0 0.1) (Color 0.2 0.7 0.7) (Color 0 0 0) 0 0 0) (translate (-6) (6) 3)
                 ]
-                (Spot (Vector 30 0 0 1) (Color 1 1 1))
+                (Spot (Vector 30 0 (-10) 1) (Color 1 1 1))
                 (Color 0.7 0.7 0.7)
                 (Color 0.1 0.1 0.1)
             )
-            (Camera 10 10 50)
+            (Camera 10 10 50 4)
         )
     GD.savePngFile "raytracer.png" image
