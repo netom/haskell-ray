@@ -84,16 +84,17 @@ firstHit ray objects = foldl' (closerIncidence ray) Nothing objects
     where
         closerIncidence :: Ray -> Maybe Incidence -> Object -> Maybe Incidence
         closerIncidence r@(Ray v _) i1 o2
-            | isNothing i1 = i2
             | isNothing i2 = i1
+            | isNothing i1 = i2t
             | d1 < d2      = i1
-            | otherwise    = i2
+            | otherwise    = i2t
             where
                 t2 = object_trans o2
                 i2 = incidence (Ray (normalize $ itrans t2 (ray_origin r)) (normalize $ itrans (stripTrans t2) (ray_direction r))) o2
-                --i2t = Just $ Incidence i2o (trans t2 i2v) i2n -- TODO: itt mátrixot kellene invertálni. szopó.
+                (Just (Incidence i2o i2v i2n)) = i2
+                i2t = Just $ Incidence i2o (trans t2 i2v) i2n -- TODO: incidence as a functor?
                 d1 = vlen $ sub v (incidence_vector $ fromJust i1)
-                d2 = vlen $ sub v (incidence_vector $ fromJust i2)
+                d2 = vlen $ sub v (incidence_vector $ fromJust i2t)
 
 
 -- Calculates the intersection of a ray and a shape.
@@ -171,7 +172,7 @@ main = do
         (render
             (Scene
                 [
-                    Object Sphere (Finish (Color 0 0.1 0) (Color 0.2 0.7 0.2) (Color 0 0 0) 0 0 0) (translate 1 0 2),
+                    Object Sphere (Finish (Color 0 0.1 0) (Color 0.2 0.7 0.2) (Color 0 0 0) 0 0 0) (translate 1 0 2.2),
                     Object Sphere (Finish (Color 0 0 0.1) (Color 0.2 0.2 0.7) (Color 0 0 0) 0 0 0) (translate (-1) 0 2)
                 ]
                 (Spot (Vector 30 0 0 1) (Color 1 1 1))
