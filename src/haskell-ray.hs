@@ -2,13 +2,9 @@ import Data.List
 import Data.Maybe
 import qualified Graphics.GD as GD
 
-import Vector
 import Color
-
-data Shape =
-    Cube  -- Unit cube 
-    | Sphere -- Unit sphere
-    deriving (Show)
+import Shape
+import Vector
 
 data Finish = Finish
     !Color -- Ambient
@@ -23,14 +19,6 @@ data Object = Object !Shape !Finish !Transformation deriving (Show)
 
 data Light
     = Spot !Vector !Color
-    deriving (Show)
-
--- When a ray hit something, it expressed
--- with an Incidence object
-data Incidence = Incidence
-    !Object -- The object
-    !Vector -- The point on the object's shape
-    !Vector -- The normal at that point
     deriving (Show)
 
 -- Camera is always at (0,0,0)
@@ -50,67 +38,42 @@ data Scene = Scene
     !Color    -- Background color
     deriving (Show)
 
--- Solves a quadratic equation. The result is the list of
--- distinct solutions (two element, one element, or empty list)
-solveQuadratic :: Double -> Double -> Double -> [Double]
-solveQuadratic a b c
-    | d <  0    = []
-    | d == 0    = [(solveWithFunc (+))]
-    | otherwise = map solveWithFunc [(+),(-)]
+-- Takes transformation into account
+incidence' :: Ray -> Object -> Maybe Incidence
+incidence' (Ray rv d) (Object s _ t)
+    | isNothing i = Nothing
+    | otherwise   = Just $ Incidence (normalize $ trans t iv) (normalize $ itrans (stripTrans t) n)
     where
-        d = b**2 - 4*a*c
-        solveWithFunc f = (-b `f` sqrt(d))/(2*a)
+        i = incidence (Ray (normalize $ itrans t rv) (normalize $ itrans (stripTrans t) d)) s
+        Just (Incidence iv n) = i
+
+incidences :: Ray -> [Object] -> [(Object, Incidence)]
+incidences ray objs
+    | null objs    = []
+    | isNothing mi = rest
+    | otherwise    = (o, i) : rest
+    where
+        o = head objs
+        rest = incidences ray $ tail objs
+        mi = incidence' ray o
+        Just i = mi
 
 -- Returns the closest object to a ray base in the direction of the ray
 -- Todo: we should work with shapes here, not objects
 -- This takes care of the object transformations
-firstHit :: Ray -> [Object] -> Maybe Incidence
-firstHit ray objects = foldl' (closerIncidence ray) Nothing objects
+firstHit :: Ray -> [Object] -> Maybe (Object, Incidence)
+firstHit ray@(Ray v _) objs
+    | null incs = Nothing
+    | otherwise = Just $ minimumBy (\(_,Incidence v1 _) (_,Incidence v2 _) -> compare (vlen $ sub v1 v) (vlen $ sub v2 v)) incs
     where
-        closerIncidence :: Ray -> Maybe Incidence -> Object -> Maybe Incidence
-        closerIncidence (Ray v d) i1 o2@(Object _ _ t2)
-            | isNothing i2 = i1
-            | isNothing i1 = i2t
-            | d1 < d2      = i1
-            | otherwise    = i2t
-            where
-                i2 = incidence (Ray (normalize $ itrans t2 v) (normalize $ itrans (stripTrans t2) d)) o2
-                (Just (Incidence i2o i2v i2n)) = i2
-                i2t = Just $ Incidence i2o (normalize $ trans t2 i2v) (normalize $ trans (stripTrans t2) i2n) -- TODO: incidence as a functor?
-                d1 = let Incidence _ i1v _ = fromJust i1 in vlen $ sub v i1v
-                d2 = let Incidence _ i2tv _ = fromJust i2t in vlen $ sub v i2tv -- TODO: heavy refactor needed
-
--- Calculates the intersection of a ray and a shape.
--- Returns the closest intersection to the starting
--- Vector of the ray.
--- Works on unit shapes! You must take care of the appropriate
--- transformations for this to be useful!
-incidence :: Ray -> Object -> Maybe Incidence
-
--- Incidence with a unit sphere at origo
-incidence (Ray (Vector rx ry rz _) (Vector rdx rdy rdz _)) obj@(Object Sphere _ _) =
-    if isNothing maybe_vector
-    then Nothing
-    else Just $ Incidence obj vector vector -- Yepp, it's a unit sphere.
-    where
-        vector = fromJust maybe_vector
-        maybe_vector =
-            if solutions == []
-            then Nothing
-            else
-                let x = minimum solutions
-                in Just $ Vector (x*rdx+rx) (x*rdy+ry) (x*rdz+rz) 1
-        solutions = Data.List.filter (> 0.00001) $ solveQuadratic
-            (rdx**2+rdy**2+rdz**2)
-            (2*rx*rdx+2*ry*rdy+2*rz*rdz)
-            (rx**2+ry**2+rz**2-1)
-
--- Intersection with a cube
-incidence _ (Object Cube _ _) = Nothing
+        incs = incidences ray objs
 
 -- Tells wether there is an obstacle between two points
 isObstructed :: Vector -> Vector -> [Object] -> Bool
-isObstructed v1 v2 objs = isJust $ firstHit (Ray v1 (sub v2 v1)) objs
+isObstructed v1 v2 objs =
+    any
+        (\(_, Incidence v _) -> (vlen $ sub v1 v) < (vlen $ sub v1 v2))
+        (incidences (Ray v1 (sub v2 v1)) objs)
 
 -- Tell the color seen by a single ray
 colorSeenBy :: Ray -> Scene -> Color
@@ -121,7 +84,7 @@ colorSeenBy ray@(Ray _ rd) s@(Scene objs (Spot lv (Color lr lg lb)) _ bg)
     | otherwise = Color (ar+dr*lr*lint+(rr*refl)) (ag+dg*lg*lint+(rg*refl)) (ab+db*lb*lint+(rb*refl)) -- FUJJJJJJ
     where
         i = firstHit ray objs
-        Just (Incidence (Object _ (Finish (Color ar ag ab) (Color dr dg db) refl _ _ _) _) i_vect i_norm) = i
+        Just ((Object _ (Finish (Color ar ag ab) (Color dr dg db) refl _ _ _) _), Incidence i_vect i_norm) = i
         lint = max 0 $ vcosphi lv i_norm
         Color rr rg rb =
             if refl <= 0
