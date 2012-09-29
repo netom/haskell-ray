@@ -1,7 +1,6 @@
-module Vectorgeo (
-    Transformation(..),
+module Vector (
+    Transformation(..), Vector(..), Ray(..),
     stay, translate, stripTrans,
-    Vector(..),
     normalize, vcosphi, origo,
     vlen, closestVector,
     trans, itrans, dotp, add, sub, scale,
@@ -11,16 +10,23 @@ module Vectorgeo (
 import Data.List
 
 data Transformation = Transformation {
-    a11  :: Double, a12  :: Double, a13  :: Double, a14  :: Double,
-    a21  :: Double, a22  :: Double, a23  :: Double, a24  :: Double,
-    a31  :: Double, a32  :: Double, a33  :: Double, a34  :: Double,
-    a41  :: Double, a42  :: Double, a43  :: Double, a44  :: Double,
+    a11  :: !Double, a12  :: !Double, a13  :: !Double, a14  :: !Double,
+    a21  :: !Double, a22  :: !Double, a23  :: !Double, a24  :: !Double,
+    a31  :: !Double, a32  :: !Double, a33  :: !Double, a34  :: !Double,
+    a41  :: !Double, a42  :: !Double, a43  :: !Double, a44  :: !Double,
 
-    ia11 :: Double, ia12 :: Double, ia13 :: Double, ia14 :: Double,
-    ia21 :: Double, ia22 :: Double, ia23 :: Double, ia24 :: Double,
-    ia31 :: Double, ia32 :: Double, ia33 :: Double, ia34 :: Double,
-    ia41 :: Double, ia42 :: Double, ia43 :: Double, ia44 :: Double
+    ia11 :: !Double, ia12 :: !Double, ia13 :: !Double, ia14 :: !Double,
+    ia21 :: !Double, ia22 :: !Double, ia23 :: !Double, ia24 :: !Double,
+    ia31 :: !Double, ia32 :: !Double, ia33 :: !Double, ia34 :: !Double,
+    ia41 :: !Double, ia42 :: !Double, ia43 :: !Double, ia44 :: !Double
 } deriving (Show)
+
+-- Vector with homogeneous coordinates
+-- x, y, z, h
+data Vector = Vector !Double !Double !Double !Double deriving (Show)
+
+-- Represents a ray (semi line). Given by origin and direction.
+data Ray = Ray !Vector !Vector deriving (Show)
 
 stay :: Transformation
 stay = Transformation
@@ -57,10 +63,6 @@ stripTrans t = Transformation
     (ia21 t) (ia22 t) (ia23 t) 0
     (ia31 t) (ia32 t) (ia33 t) 0
     0        0        0        1
-
--- Vector with homogeneous coordinates
--- x, y, z, h
-data Vector = Vector Double Double Double Double deriving (Show)
 
 origo :: Vector
 origo = Vector 0 0 0 1

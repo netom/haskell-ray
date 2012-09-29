@@ -2,11 +2,8 @@ import Data.List
 import Data.Maybe
 import qualified Graphics.GD as GD
 
-import Vectorgeo
-
--- Color in R G B format
--- values ranges from 0 to 1
-data Color = Color Double Double Double deriving (Show)
+import Vector
+import Color
 
 data Shape =
     Cube  -- Unit cube 
@@ -14,49 +11,43 @@ data Shape =
     deriving (Show)
 
 data Finish = Finish
-    Color -- Ambient
-    Color -- Diffuse
-    Double -- Reflect. TODO: add tint
-    Double -- 0: opaque, 1: transparent
-    Double -- 0: diffuse, 1: shiny
-    Double -- 1: air
+    !Color -- Ambient
+    !Color -- Diffuse
+    !Double -- Reflect. TODO: add tint
+    !Double -- 0: opaque, 1: transparent
+    !Double -- 0: diffuse, 1: shiny
+    !Double -- 1: air
     deriving (Show)
 
-data Object = Object Shape Finish Transformation deriving (Show)
+data Object = Object !Shape !Finish !Transformation deriving (Show)
 
 data Light
-    = Spot Vector Color
+    = Spot !Vector !Color
     deriving (Show)
 
 -- When a ray hit something, it expressed
 -- with an Incidence object
 data Incidence = Incidence
-    Object -- The object
-    Vector -- The point on the object's shape
-    Vector -- The normal at that point
+    !Object -- The object
+    !Vector -- The point on the object's shape
+    !Vector -- The normal at that point
     deriving (Show)
-
--- Represents a ray (semi line)
-data Ray = Ray {
-    ray_origin :: Vector,
-    ray_direction :: Vector
-} deriving (Show)
 
 -- Camera is always at (0,0,0)
 -- and the canvas center is always at (0,0,1)
 data Camera = Camera
-    Double -- Canvas width
-    Double -- Canvas height
-    Double -- resolution 1/pixel
-    Double -- Camera distance from canvas
+    !Double -- Canvas width
+    !Double -- Canvas height
+    !Double -- resolution 1/pixel
+    !Double -- Camera distance from canvas
     deriving (Show)
 
 -- Represents a scene (list of objects)
 data Scene = Scene
     [Object] -- List of objects
-    Light    -- Light, just one for now
-    Color    -- Ambient light
-    Color    -- Background color
+    !Light    -- Light, just one for now
+    !Color    -- Ambient light
+    !Color    -- Background color
     deriving (Show)
 
 -- Solves a quadratic equation. The result is the list of
@@ -77,13 +68,13 @@ firstHit :: Ray -> [Object] -> Maybe Incidence
 firstHit ray objects = foldl' (closerIncidence ray) Nothing objects
     where
         closerIncidence :: Ray -> Maybe Incidence -> Object -> Maybe Incidence
-        closerIncidence r@(Ray v _) i1 o2@(Object _ _ t2)
+        closerIncidence (Ray v d) i1 o2@(Object _ _ t2)
             | isNothing i2 = i1
             | isNothing i1 = i2t
             | d1 < d2      = i1
             | otherwise    = i2t
             where
-                i2 = incidence (Ray (normalize $ itrans t2 (ray_origin r)) (normalize $ itrans (stripTrans t2) (ray_direction r))) o2
+                i2 = incidence (Ray (normalize $ itrans t2 v) (normalize $ itrans (stripTrans t2) d)) o2
                 (Just (Incidence i2o i2v i2n)) = i2
                 i2t = Just $ Incidence i2o (normalize $ trans t2 i2v) (normalize $ trans (stripTrans t2) i2n) -- TODO: incidence as a functor?
                 d1 = let Incidence _ i1v _ = fromJust i1 in vlen $ sub v i1v
@@ -109,7 +100,7 @@ incidence (Ray (Vector rx ry rz _) (Vector rdx rdy rdz _)) obj@(Object Sphere _ 
             else
                 let x = minimum solutions
                 in Just $ Vector (x*rdx+rx) (x*rdy+ry) (x*rdz+rz) 1
-        solutions = filter (> 0.00001) $ solveQuadratic
+        solutions = Data.List.filter (> 0.00001) $ solveQuadratic
             (rdx**2+rdy**2+rdz**2)
             (2*rx*rdx+2*ry*rdy+2*rz*rdz)
             (rx**2+ry**2+rz**2-1)
@@ -122,11 +113,11 @@ isObstructed :: Vector -> Vector -> [Object] -> Bool
 isObstructed v1 v2 objs = isJust $ firstHit (Ray v1 (sub v2 v1)) objs
 
 -- Tell the color seen by a single ray
-renderPixel :: Ray -> Scene -> Color
+colorSeenBy :: Ray -> Scene -> Color
 
-renderPixel ray@(Ray _ rd) s@(Scene objs (Spot lv (Color lr lg lb)) _ bg)
+colorSeenBy ray@(Ray _ rd) s@(Scene objs (Spot lv (Color lr lg lb)) _ bg)
     | isNothing i = bg
-    | isObstructed i_vect lv objs = Color (ar+rr*refl) (ag+rb*refl) (ab+rb*refl) -- TODO: better obstruction detection from a surface
+    | isObstructed i_vect lv objs = Color (ar+rr*refl) (ag+rb*refl) (ab+rb*refl)
     | otherwise = Color (ar+dr*lr*lint+(rr*refl)) (ag+dg*lg*lint+(rg*refl)) (ab+db*lb*lint+(rb*refl)) -- FUJJJJJJ
     where
         i = firstHit ray objs
@@ -135,7 +126,7 @@ renderPixel ray@(Ray _ rd) s@(Scene objs (Spot lv (Color lr lg lb)) _ bg)
         Color rr rg rb =
             if refl <= 0
             then Color 0 0 0
-            else renderPixel (Ray i_vect $ reflection rd i_norm) s
+            else colorSeenBy (Ray i_vect $ reflection rd i_norm) s
 
 -- Returns coordinates on the image, and the rays through those
 -- coordinates
@@ -148,8 +139,7 @@ rays (Camera w h r d) =
 
 render :: Scene -> Camera -> [((Int, Int),Color)]
 
-render scene cam = [((x, y), renderPixel ray scene) | ((x, y), ray) <- rays cam]
-
+render scene cam = [((x, y), colorSeenBy ray scene) | ((x, y), ray) <- rays cam]
 
 -- Execute main program.
 main :: IO ()
