@@ -2,11 +2,11 @@ import Data.List
 import Data.Maybe
 import qualified Graphics.GD as GD
 
-import Raygeo
+import Vectorgeo
 
 -- Color in R G B format
 -- values ranges from 0 to 1
-data Color = Color Float Float Float deriving (Show)
+data Color = Color Double Double Double deriving (Show)
 
 data Shape =
     Cube  -- Unit cube 
@@ -16,10 +16,10 @@ data Shape =
 data Finish = Finish
     Color -- Ambient
     Color -- Diffuse
-    Color -- Reflect
-    Float -- 0: opaque, 1: transparent
-    Float -- 0: diffuse, 1: shiny
-    Float -- 1: air
+    Double -- Reflect. TODO: add tint
+    Double -- 0: opaque, 1: transparent
+    Double -- 0: diffuse, 1: shiny
+    Double -- 1: air
     deriving (Show)
 
 data Object = Object Shape Finish Transformation deriving (Show)
@@ -45,10 +45,10 @@ data Ray = Ray {
 -- Camera is always at (0,0,0)
 -- and the canvas center is always at (0,0,1)
 data Camera = Camera
-    Float -- Canvas width
-    Float -- Canvas height
-    Float -- resolution 1/pixel
-    Float -- Camera distance from canvas
+    Double -- Canvas width
+    Double -- Canvas height
+    Double -- resolution 1/pixel
+    Double -- Camera distance from canvas
     deriving (Show)
 
 -- Represents a scene (list of objects)
@@ -61,7 +61,7 @@ data Scene = Scene
 
 -- Solves a quadratic equation. The result is the list of
 -- distinct solutions (two element, one element, or empty list)
-solveQuadratic :: Float -> Float -> Float -> [Float]
+solveQuadratic :: Double -> Double -> Double -> [Double]
 solveQuadratic a b c
     | d <  0    = []
     | d == 0    = [(solveWithFunc (+))]
@@ -85,23 +85,25 @@ firstHit ray objects = foldl' (closerIncidence ray) Nothing objects
             where
                 i2 = incidence (Ray (normalize $ itrans t2 (ray_origin r)) (normalize $ itrans (stripTrans t2) (ray_direction r))) o2
                 (Just (Incidence i2o i2v i2n)) = i2
-                i2t = Just $ Incidence i2o (trans t2 i2v) i2n -- TODO: incidence as a functor?
+                i2t = Just $ Incidence i2o (normalize $ trans t2 i2v) (normalize $ trans (stripTrans t2) i2n) -- TODO: incidence as a functor?
                 d1 = let Incidence _ i1v _ = fromJust i1 in vlen $ sub v i1v
                 d2 = let Incidence _ i2tv _ = fromJust i2t in vlen $ sub v i2tv -- TODO: heavy refactor needed
 
 -- Calculates the intersection of a ray and a shape.
 -- Returns the closest intersection to the starting
 -- Vector of the ray.
+-- Works on unit shapes! You must take care of the appropriate
+-- transformations for this to be useful!
 incidence :: Ray -> Object -> Maybe Incidence
 
 -- Incidence with a unit sphere at origo
 incidence (Ray (Vector rx ry rz _) (Vector rdx rdy rdz _)) obj@(Object Sphere _ _) =
-    if isNothing vector
+    if isNothing maybe_vector
     then Nothing
-    else Just $ Incidence obj (fromJust vector) (Vector px py pz 1)
+    else Just $ Incidence obj vector vector -- Yepp, it's a unit sphere.
     where
-        (Vector px py pz _) = fromJust vector
-        vector =
+        vector = fromJust maybe_vector
+        maybe_vector =
             if solutions == []
             then Nothing
             else
@@ -122,15 +124,18 @@ isObstructed v1 v2 objs = isJust $ firstHit (Ray v1 (sub v2 v1)) objs
 -- Tell the color seen by a single ray
 renderPixel :: Ray -> Scene -> Color
 
-renderPixel ray (Scene objs (Spot lv (Color lr lg lb)) _ bg)
+renderPixel ray@(Ray _ rd) s@(Scene objs (Spot lv (Color lr lg lb)) _ bg)
     | isNothing i = bg
-    | isObstructed i_vect lv objs = c -- TODO: better obstruction detection from a surface
-    | otherwise = Color (ar+dr*lr*lint) (ag+dg*lg*lint) (ab+db*lb*lint) -- FUJJJJJJ
+    | isObstructed i_vect lv objs = Color (ar+rr*refl) (ag+rb*refl) (ab+rb*refl) -- TODO: better obstruction detection from a surface
+    | otherwise = Color (ar+dr*lr*lint+(rr*refl)) (ag+dg*lg*lint+(rg*refl)) (ab+db*lb*lint+(rb*refl)) -- FUJJJJJJ
     where
         i = firstHit ray objs
-        Just (Incidence (Object _ (Finish c@(Color ar ag ab) (Color dr dg db) _ _ _ _) _) _ _) = i
-        Just (Incidence _ i_vect i_norm) = i
+        Just (Incidence (Object _ (Finish (Color ar ag ab) (Color dr dg db) refl _ _ _) _) i_vect i_norm) = i
         lint = max 0 $ vcosphi lv i_norm
+        Color rr rg rb =
+            if refl <= 0
+            then Color 0 0 0
+            else renderPixel (Ray i_vect $ reflection rd i_norm) s
 
 -- Returns coordinates on the image, and the rays through those
 -- coordinates
@@ -152,22 +157,25 @@ main :: IO ()
 -- Get the list of coordinates and associated colors and call GD's
 -- setPixel function on each of them using a freshly created image.
 main = do
-    image <- GD.newImage (500, 500)
+    image <- GD.newImage (1001, 1001)
     mapM_
-        (\((x, y), (Color r g b)) -> GD.setPixel (y, 499-x) (GD.rgb (round (r*256)) (round (g*256)) (round (b*256))) image)
+        (\((x, y), (Color r g b)) -> do
+            GD.setPixel (y, 1000-x) (GD.rgb (round (r*256)) (round (g*256)) (round (b*256))) image
+            --print (x, y)
+        )
         (render
             (Scene
                 [
-                    Object Sphere (Finish (Color 0 0.1 0) (Color 0.2 0.7 0.2) (Color 0 0 0) 0 0 0) (translate 1 0 1.1),
-                    Object Sphere (Finish (Color 0 0 0.1) (Color 0.2 0.2 0.7) (Color 0 0 0) 0 0 0) (translate (-1) 0 1.5),
-                    Object Sphere (Finish (Color 0 0 0.1) (Color 0.7 0.2 0.2) (Color 0 0 0) 0 0 0) (translate (-6) (-6) 10),
-                    Object Sphere (Finish (Color 0 0 0.1) (Color 0.7 0.2 0.7) (Color 0 0 0) 0 0 0) (translate (6) (6) 3),
-                    Object Sphere (Finish (Color 0 0 0.1) (Color 0.2 0.7 0.7) (Color 0 0 0) 0 0 0) (translate (-6) (6) 3)
+                    Object Sphere (Finish (Color 0 0.1 0) (Color 0.2 0.7 0.2) 0.7 0 0 0) (translate 1 0 1.1),
+                    Object Sphere (Finish (Color 0 0 0.1) (Color 0.2 0.2 0.7) 0.7 0 0 0) (translate (-1) 0 1.5),
+                    Object Sphere (Finish (Color 0.1 0 0) (Color 0.7 0.2 0.2) 0.7 0 0 0) (translate 0 (-3) 6),
+                    Object Sphere (Finish (Color 0.1 0 0.1) (Color 0.7 0.2 0.7) 0.7 0 0 0) (translate (3) (3) 2),
+                    Object Sphere (Finish (Color 0 0.1 0.1) (Color 0.2 0.7 0.7) 0.7 0 0 0) (translate (-3) (3) 2)
                 ]
                 (Spot (Vector 30 0 (-10) 1) (Color 1 1 1))
                 (Color 0.7 0.7 0.7)
                 (Color 0.1 0.1 0.1)
             )
-            (Camera 10 10 50 10)
+            (Camera 10 10 100 10)
         )
     GD.savePngFile "raytracer.png" image

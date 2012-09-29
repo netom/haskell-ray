@@ -1,24 +1,25 @@
-module Raygeo (
+module Vectorgeo (
     Transformation(..),
     stay, translate, stripTrans,
     Vector(..),
     normalize, vcosphi, origo,
     vlen, closestVector,
-    trans, itrans, dotp, add, sub
+    trans, itrans, dotp, add, sub, scale,
+    reflection
 ) where
 
 import Data.List
 
 data Transformation = Transformation {
-    a11  :: Float, a12  :: Float, a13  :: Float, a14  :: Float,
-    a21  :: Float, a22  :: Float, a23  :: Float, a24  :: Float,
-    a31  :: Float, a32  :: Float, a33  :: Float, a34  :: Float,
-    a41  :: Float, a42  :: Float, a43  :: Float, a44  :: Float,
+    a11  :: Double, a12  :: Double, a13  :: Double, a14  :: Double,
+    a21  :: Double, a22  :: Double, a23  :: Double, a24  :: Double,
+    a31  :: Double, a32  :: Double, a33  :: Double, a34  :: Double,
+    a41  :: Double, a42  :: Double, a43  :: Double, a44  :: Double,
 
-    ia11 :: Float, ia12 :: Float, ia13 :: Float, ia14 :: Float,
-    ia21 :: Float, ia22 :: Float, ia23 :: Float, ia24 :: Float,
-    ia31 :: Float, ia32 :: Float, ia33 :: Float, ia34 :: Float,
-    ia41 :: Float, ia42 :: Float, ia43 :: Float, ia44 :: Float
+    ia11 :: Double, ia12 :: Double, ia13 :: Double, ia14 :: Double,
+    ia21 :: Double, ia22 :: Double, ia23 :: Double, ia24 :: Double,
+    ia31 :: Double, ia32 :: Double, ia33 :: Double, ia34 :: Double,
+    ia41 :: Double, ia42 :: Double, ia43 :: Double, ia44 :: Double
 } deriving (Show)
 
 stay :: Transformation
@@ -33,7 +34,7 @@ stay = Transformation
     0 0 1 0
     0 0 0 1
 
-translate :: Float -> Float -> Float -> Transformation
+translate :: Double -> Double -> Double -> Transformation
 translate x y z = Transformation
     1 0 0 x
     0 1 0 y
@@ -59,7 +60,7 @@ stripTrans t = Transformation
 
 -- Vector with homogeneous coordinates
 -- x, y, z, h
-data Vector = Vector Float Float Float Float deriving (Show)
+data Vector = Vector Double Double Double Double deriving (Show)
 
 origo :: Vector
 origo = Vector 0 0 0 1
@@ -78,10 +79,10 @@ itrans t (Vector x y z h) = Vector
     ((ia31 t)*x+(ia32 t)*y+(ia33 t)*z+(ia34 t)*h)
     ((ia41 t)*x+(ia42 t)*y+(ia43 t)*z+(ia44 t)*h)
 
-dotp :: Vector -> Vector -> Float
+dotp :: Vector -> Vector -> Double
 dotp (Vector x1 y1 z1 _) (Vector x2 y2 z2 _) = x1*x2+y1*y2+z1*z2
 
-vcosphi :: Vector -> Vector -> Float
+vcosphi :: Vector -> Vector -> Double
 vcosphi v1 v2 = dotp v1 v2 / (vlen v1 * vlen v2)
 
 add :: Vector -> Vector -> Vector
@@ -93,11 +94,19 @@ sub (Vector x1 y1 z1 _) (Vector x2 y2 z2 _) = Vector (x1-x2) (y1-y2) (z1-z2) 1
 normalize :: Vector -> Vector
 normalize (Vector x y z h) = Vector (x/h) (y/h) (z/h) 1
 
+scale :: Double -> Vector -> Vector
+scale s (Vector x y z h) = Vector (s*x) (s*y) (s*z) h
+
 -- Calculates the length of a vector
 -- does not care about the h coordinate, it must be 1!
-vlen :: Vector -> Float
+vlen :: Vector -> Double
 vlen (Vector x y z _) = sqrt(x**2+y**2+z**2)
 
 -- Returns the closest point to a given point from a point list
 closestVector :: Vector -> [Vector] -> Vector
 closestVector v vectors = foldl1' (\v1 v2 -> if vlen (sub v2 v) < vlen (sub v1 v) then v2 else v1) vectors
+
+-- Given the incident and normal vector returns
+-- a vector that represents the direction of a reflected ray
+reflection :: Vector -> Vector -> Vector
+reflection incident normal = sub incident $ scale (2 * dotp incident normal) normal
