@@ -1,7 +1,7 @@
 module Vector (
     Transformation(..), Vector(..), Ray(..),
     stay, translate, stripTrans,
-    normalize, vcosphi, origo,
+    correct, normalize, vcosphi, origo,
     vlen, closestVector,
     trans, itrans, dotp, add, sub, scale,
     reflection
@@ -93,8 +93,13 @@ add (Vector x1 y1 z1 _) (Vector x2 y2 z2 _) = Vector (x1+x2) (y1+y2) (z1+z2) 1
 sub :: Vector -> Vector -> Vector
 sub (Vector x1 y1 z1 _) (Vector x2 y2 z2 _) = Vector (x1-x2) (y1-y2) (z1-z2) 1
 
+-- Correction of homogeneous coordinates
+correct :: Vector -> Vector
+correct (Vector x y z h) = Vector (x/h) (y/h) (z/h) 1
+
+-- Make a unit length vector
 normalize :: Vector -> Vector
-normalize (Vector x y z h) = Vector (x/h) (y/h) (z/h) 1
+normalize v = scale (1 / vlen v) v
 
 scale :: Double -> Vector -> Vector
 scale s (Vector x y z h) = Vector (s*x) (s*y) (s*z) h
