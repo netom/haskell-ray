@@ -6,7 +6,18 @@ import Color
 import Shape
 import Vector
 
-data Finish = Finish
+-- TODO
+-- Transparency
+-- Refraction
+-- Shapes: Cube, Cone, Torus, Plane, Membrane (square)
+-- Procedural textures: checker, turbulent textures, etc.
+-- Random bump map, depth of field
+-- CSG: union, intersection, difference, blobbing union and intersection
+-- Shapes: triangle, circle, polygon lines, bezier curves, prism, lathe
+-- Lights: directional, area
+-- Global illumination: photon map
+
+data Finish = Finish -- TODO: specular color, parameters
     !Color -- Ambient
     !Color -- Diffuse
     !Color -- Reflection tint
@@ -61,7 +72,7 @@ incidences ray objs
 -- Returns the closest object to a ray base in the direction of the ray
 -- Todo: we should work with shapes here, not objects
 -- This takes care of the object transformations
-firstHit :: Ray -> [Object] -> Maybe (Object, Incidence)
+firstHit :: Ray -> [Object] -> Maybe (Object, Incidence) -- TODO: no tuples please.
 firstHit ray@(Ray v _) objs
     | null incs = Nothing
     | otherwise = Just $ minimumBy (\(_,Incidence v1 _) (_,Incidence v2 _) -> compare (vlen $ sub v1 v) (vlen $ sub v2 v)) incs
@@ -77,39 +88,46 @@ isObstructed v1 v2 objs =
 
 -- Blinn-Phong shading
 -- View direction, light direction, spec. color, surface normal.
-blinnPhong :: Vector -> Vector -> Color -> Vector -> Color
-blinnPhong vd ld c normal = 
+blinnPhong :: Vector -> Vector -> Vector -> Color -> Color
+blinnPhong vd ld normal c = 
     cscale blinnTerm2 c
   where
     blinnDir = sub ld vd
     temp = sqrt(dotp blinnDir blinnDir)
     blinnDir2 = scale (1/temp) blinnDir
     blinnTerm = max (dotp blinnDir2 normal) 0
-    specValue = 10 -- TODO: material param
+    specValue = 5 -- TODO: material param
     coeff = 1     -- TODO: param
-    specPower = 30 -- TODO: material param
+    specPower = 200 -- TODO: material param
     blinnTerm2 = specValue * blinnTerm ** specPower * coeff -- TODO: specular value instead of 1, coeff instead of 2
+
+-- Diffuse lighting
+-- light direction, diffuse color, surface normal
+diffuse :: Vector -> Vector -> Color -> Color
+diffuse ld normal c = cscale (max 0 $ vcosphi ld normal) c
 
 -- Tell the color seen by a single ray
 colorSeenBy :: Ray -> Scene -> Color
 
-colorSeenBy ray@(Ray _ rd) s@(Scene objs (Spot lv lightc) _ bg)
+colorSeenBy ray@(Ray _ rd) s@(Scene objs (Spot lv lightc) _ bg) -- TODO: refactor the SHIT out of these long lines
     | isNothing i = bg
     | isObstructed i_vect lv objs = cadd amb $ cfilter refl tint
-    | otherwise = cadd (cfilter diff $ cscale lint lightc) $ cadd (cfilter refl tint) $ cadd amb $ cscale lint $ cfilter lightc $ blinnPhong rd (normalize $ sub lv i_vect) diff i_norm -- TODO: normalize directions
-    -- | otherwise = cadd (cadd amb (cfilter diff $ cscale lint lightc)) (cfilter refl tint)
-    where
-        i = firstHit ray objs
-        Just ((Object _ (Finish amb diff tint _ _ _) _), Incidence i_vect i_norm) = i
-        lint = (max 0 $ vcosphi lv i_norm) / (vlen $ sub lv i_vect) ** 2
-        refl =
-            if isIntense 0.01 tint -- TODO: add color treshold as parameter
-            then colorSeenBy (Ray i_vect $ reflection rd i_norm) s
-            else Color 0 0 0
+    | otherwise = cadd amb $ cadd diff $ cadd spec $ cadd refl refr
+  where
+    i = firstHit ray objs
+    Just ((Object _ (Finish amb diffc tint _ _ _) _), Incidence i_vect i_norm) = i
+    lint = 1 / (vlen $ sub lv i_vect) ** 2 -- Light intensity depending on distance
+    refl = -- Reflected ray
+        if isIntense 0.01 tint
+        then colorSeenBy (Ray i_vect $ reflection rd i_norm) s
+        else Color 0 0 0 -- TODO: add color treshold as parameter
+    diff = cfilter lightc $ cscale lint $ diffuse (normalize $ sub lv i_vect) i_norm diffc -- Diffuse component
+    spec = cfilter lightc $ cscale lint $ blinnPhong rd (normalize $ sub lv i_vect) i_norm diffc -- Specular component. TODO: specular color
+    refr = Color 0 0 0 -- Refracted component. TODO.
 
 -- Returns coordinates on the image, and the rays through those
 -- coordinates
-rays :: Camera -> [((Int,Int),Ray)]
+rays :: Camera -> [((Int,Int),Ray)] -- TODO: this and render must be made parallel.
 rays (Camera w h r d) =
     [
         ((x, y), Ray (Vector 0 0 (-d) 1) (normalize $ Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) d 1) )
@@ -117,7 +135,6 @@ rays (Camera w h r d) =
     ]
 
 render :: Scene -> Camera -> [((Int, Int),Color)]
-
 render scene cam = [((x, y), colorSeenBy ray scene) | ((x, y), ray) <- rays cam]
 
 -- Shift colors between 0 and 1 using exponential function
@@ -145,7 +162,7 @@ main = do
                     Object Sphere (Finish (Color 0.3 0.1 0.3) (Color 0.8 0.6 0.8) (Color 0.9 0.7 0.9) 0 0 0) (translate (3) (3) 2),
                     Object Sphere (Finish (Color 0.1 0.3 0.3) (Color 0.6 0.8 0.8) (Color 0.7 0.9 0.9) 0 0 0) (translate (-3) (3) 2)
                 ]
-                (Spot (Vector 30 0 (-10) 1) (Color 1000 1000 1000))
+                (Spot (Vector 90 0 (-30) 1) (Color 9000 9000 9000))
                 (Color 1 1 1)
                 (Color 0 0 0)
             )
