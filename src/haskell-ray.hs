@@ -1,5 +1,6 @@
 import Data.List
 import Data.Maybe
+import Control.Parallel.Strategies
 import qualified Graphics.GD as GD
 
 import Color
@@ -135,7 +136,8 @@ rays (Camera w h r d) =
     ]
 
 render :: Scene -> Camera -> [((Int, Int),Color)]
-render scene cam = [((x, y), colorSeenBy ray scene) | ((x, y), ray) <- rays cam]
+-- render scene cam = [((x, y), colorSeenBy ray scene) | ((x, y), ray) <- rays cam]
+render scene cam = map (\((x, y), ray) -> ((x, y), colorSeenBy ray scene)) (rays cam) `using` parList rseq
 
 -- Shift colors between 0 and 1 using exponential function
 expose :: Double -> Double
