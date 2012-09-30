@@ -85,7 +85,7 @@ blinnPhong vd ld c normal =
     temp = sqrt(dotp blinnDir blinnDir)
     blinnDir2 = scale (1/temp) blinnDir
     blinnTerm = max (dotp blinnDir2 normal) 0
-    specValue = 2 -- TODO: material param
+    specValue = 10 -- TODO: material param
     coeff = 1     -- TODO: param
     specPower = 30 -- TODO: material param
     blinnTerm2 = specValue * blinnTerm ** specPower * coeff -- TODO: specular value instead of 1, coeff instead of 2
@@ -122,7 +122,7 @@ render scene cam = [((x, y), colorSeenBy ray scene) | ((x, y), ray) <- rays cam]
 
 -- Shift colors between 0 and 1 using exponential function
 expose :: Double -> Double
-expose c = 1 - (3 ** (-c))
+expose c = 1 - (2.7182 ** (-c))
 
 -- Execute main program.
 main :: IO ()
@@ -139,15 +139,15 @@ main = do
         (render
             (Scene
                 [
-                    Object Sphere (Finish (Color 0 0.2 0) (Color 0.4 0.7 0.4) (Color 0.4 0.8 0.4) 0 0 0) (translate 1 0 1.1),
-                    Object Sphere (Finish (Color 0 0 0.2) (Color 0.4 0.4 0.7) (Color 0.4 0.4 0.8) 0 0 0) (translate (-1) 0 1.5),
-                    Object Sphere (Finish (Color 0.2 0 0) (Color 0.7 0.4 0.4) (Color 0.8 0.4 0.4) 0 0 0) (translate 0 (-3) 6),
-                    Object Sphere (Finish (Color 0.2 0 0.2) (Color 0.7 0.4 0.7) (Color 0.8 0.4 0.8) 0 0 0) (translate (3) (3) 2),
-                    Object Sphere (Finish (Color 0 0.2 0.2) (Color 0.4 0.7 0.7) (Color 0.4 0.8 0.8) 0 0 0) (translate (-3) (3) 2)
+                    Object Sphere (Finish (Color 0.1 0.3 0.1) (Color 0.6 0.8 0.6) (Color 0.7 0.9 0.7) 0 0 0) (translate 1 0 1.1),
+                    Object Sphere (Finish (Color 0.1 0.1 0.3) (Color 0.6 0.6 0.8) (Color 0.7 0.7 0.9) 0 0 0) (translate (-1) 0 1.5),
+                    Object Sphere (Finish (Color 0.3 0.1 0.1) (Color 0.8 0.6 0.6) (Color 0.9 0.7 0.7) 0 0 0) (translate 0 (-3) 6),
+                    Object Sphere (Finish (Color 0.3 0.1 0.3) (Color 0.8 0.6 0.8) (Color 0.9 0.7 0.9) 0 0 0) (translate (3) (3) 2),
+                    Object Sphere (Finish (Color 0.1 0.3 0.3) (Color 0.6 0.8 0.8) (Color 0.7 0.9 0.9) 0 0 0) (translate (-3) (3) 2)
                 ]
                 (Spot (Vector 30 0 (-10) 1) (Color 1000 1000 1000))
                 (Color 1 1 1)
-                (Color 0.2 0.2 0.2)
+                (Color 0 0 0)
             )
             (Camera 10 10 100 10)
         )
