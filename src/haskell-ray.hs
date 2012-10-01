@@ -1,6 +1,5 @@
 import Data.List
 import Data.Maybe
-import Control.Parallel.Strategies
 import qualified Graphics.GD as GD
 
 import Color
@@ -128,16 +127,13 @@ colorSeenBy ray@(Ray _ rd) s@(Scene objs (Spot lv lightc) _ bg) -- TODO: refacto
 
 -- Returns coordinates on the image, and the rays through those
 -- coordinates
-rays :: Camera -> [((Int,Int),Ray)] -- TODO: this and render must be made parallel.
+rays :: Camera -> [((Int,Int),Ray)]
 rays (Camera w h r d) =
-    [
-        ((x, y), Ray (Vector 0 0 (-d) 1) (normalize $ Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) d 1) )
-        | x <- [0..round(w*r)], y <- [0..round(h*r)]
-    ]
+    [((x, y), Ray (Vector 0 0 (-d) 1) (normalize $ Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) d 1) )
+    | x <- [0..round(w*r)], y <- [0..round(h*r)]]
 
 render :: Scene -> Camera -> [((Int, Int),Color)]
--- render scene cam = [((x, y), colorSeenBy ray scene) | ((x, y), ray) <- rays cam]
-render scene cam = parMap rpar (\((x, y), ray) -> ((x, y), colorSeenBy ray scene)) (rays cam)
+render scene cam = map (\((x, y), ray) -> ((x, y), colorSeenBy ray scene)) (rays cam)
 
 -- Shift colors between 0 and 1 using exponential function
 expose :: Double -> Double
@@ -158,11 +154,11 @@ main = do
         (render
             (Scene
                 [
-                    Object Sphere (Finish (Color 0.1 0.3 0.1) (Color 0.6 0.8 0.6) (Color 0.7 0.9 0.7) 0 0 0) (translate 1 0 1.1),
-                    Object Sphere (Finish (Color 0.1 0.1 0.3) (Color 0.6 0.6 0.8) (Color 0.7 0.7 0.9) 0 0 0) (translate (-1) 0 1.5),
-                    Object Sphere (Finish (Color 0.3 0.1 0.1) (Color 0.8 0.6 0.6) (Color 0.9 0.7 0.7) 0 0 0) (translate 0 (-3) 6),
-                    Object Sphere (Finish (Color 0.3 0.1 0.3) (Color 0.8 0.6 0.8) (Color 0.9 0.7 0.9) 0 0 0) (translate (3) (3) 2),
-                    Object Sphere (Finish (Color 0.1 0.3 0.3) (Color 0.6 0.8 0.8) (Color 0.7 0.9 0.9) 0 0 0) (translate (-3) (3) 2)
+                    Object Sphere (Finish (Color 0.1 0.3 0.1) (Color 0.3 0.4 0.3) (Color 0.7 0.9 0.7) 0 0 0) (translate 1 0 1.1),
+                    Object Sphere (Finish (Color 0.1 0.1 0.3) (Color 0.3 0.3 0.4) (Color 0.7 0.7 0.9) 0 0 0) (translate (-1) 0 1.5),
+                    Object Sphere (Finish (Color 0.3 0.1 0.1) (Color 0.4 0.3 0.3) (Color 0.9 0.7 0.7) 0 0 0) (translate 0 (-3) 6),
+                    Object Sphere (Finish (Color 0.3 0.1 0.3) (Color 0.4 0.3 0.4) (Color 0.9 0.7 0.9) 0 0 0) (translate (3) (3) 2),
+                    Object Sphere (Finish (Color 0.1 0.3 0.3) (Color 0.3 0.4 0.4) (Color 0.7 0.9 0.9) 0 0 0) (translate (-3) (3) 2)
                 ]
                 (Spot (Vector 90 0 (-30) 1) (Color 9000 9000 9000))
                 (Color 1 1 1)
