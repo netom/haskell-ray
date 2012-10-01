@@ -137,7 +137,7 @@ rays (Camera w h r d) =
 
 render :: Scene -> Camera -> [((Int, Int),Color)]
 -- render scene cam = [((x, y), colorSeenBy ray scene) | ((x, y), ray) <- rays cam]
-render scene cam = map (\((x, y), ray) -> ((x, y), colorSeenBy ray scene)) (rays cam) `using` parList rseq
+render scene cam = parMap rpar (\((x, y), ray) -> ((x, y), colorSeenBy ray scene)) (rays cam)
 
 -- Shift colors between 0 and 1 using exponential function
 expose :: Double -> Double
