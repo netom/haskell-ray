@@ -17,4 +17,4 @@ executable haskell-ray
   hs-source-dirs:      src
   main-is:             haskell-ray.hs
   build-depends:       base ==4.5.*,gd,parallel-io
-  ghc-options:         -Wall -O2 -funbox-strict-fields -threaded -rtsopts -eventlog
+  ghc-options:         -Wall -O2 -funbox-strict-fields -threaded -rtsopts

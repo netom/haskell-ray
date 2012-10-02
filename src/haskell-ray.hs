@@ -55,20 +55,20 @@ incidence' :: Ray -> Object -> Maybe Incidence
 incidence' (Ray rv d) (Object s _ t)
     | isNothing i = Nothing
     | otherwise   = Just $ Incidence (correct $ trans t iv) (correct $ itrans (stripTrans t) n)
-    where
-        i = incidence (Ray (correct $ itrans t rv) (correct $ itrans (stripTrans t) d)) s
-        Just (Incidence iv n) = i
+  where
+    i = incidence (Ray (correct $ itrans t rv) (correct $ itrans (stripTrans t) d)) s
+    Just (Incidence iv n) = i
 
 incidences :: Ray -> [Object] -> [(Object, Incidence)]
 incidences ray objs
     | null objs    = []
     | isNothing mi = rest
     | otherwise    = (o, i) : rest
-    where
-        o = head objs
-        rest = incidences ray $ tail objs
-        mi = incidence' ray o
-        Just i = mi
+  where
+    o = head objs
+    rest = incidences ray $ tail objs
+    mi = incidence' ray o
+    Just i = mi
 
 -- Returns the closest object to a ray base in the direction of the ray
 -- Todo: we should work with shapes here, not objects
@@ -77,8 +77,8 @@ firstHit :: Ray -> [Object] -> Maybe (Object, Incidence) -- TODO: no tuples plea
 firstHit ray@(Ray v _) objs
     | null incs = Nothing
     | otherwise = Just $ minimumBy (\(_,Incidence v1 _) (_,Incidence v2 _) -> compare (vlen $ sub v1 v) (vlen $ sub v2 v)) incs
-    where
-        incs = incidences ray objs
+  where
+    incs = incidences ray objs
 
 -- Tells wether there is an obstacle between two points
 isObstructed :: Vector -> Vector -> [Object] -> Bool
@@ -109,7 +109,6 @@ diffuse ld normal c = cscale (max 0 $ vcosphi ld normal) c
 
 -- Tell the color seen by a single ray
 colorSeenBy :: Ray -> Scene -> Color
-
 colorSeenBy ray@(Ray _ rd) s@(Scene objs (Spot lv lightc) _ bg) -- TODO: refactor the SHIT out of these long lines
     | isNothing i = bg
     | isObstructed i_vect lv objs = cadd amb $ cfilter refl tint
@@ -126,30 +125,25 @@ colorSeenBy ray@(Ray _ rd) s@(Scene objs (Spot lv lightc) _ bg) -- TODO: refacto
     spec = cfilter lightc $ cscale lint $ blinnPhong rd (normalize $ sub lv i_vect) i_norm diffc -- Specular component. TODO: specular color
     refr = Color 0 0 0 -- Refracted component. TODO.
 
--- Returns coordinates on the image, and the rays through those
--- coordinates
--- rays :: Camera -> [((Int,Int),Ray)]
--- rays (Camera w h r d) =
---     [((x, y), Ray (Vector 0 0 (-d) 1) (normalize $ Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) d 1) )
---     | x <- [0..round(w*r)-1], y <- [0..round(h*r)-1]]
-
 -- Shift colors between 0 and 1 using exponential function
 expose :: Double -> Double
 expose c = 1 - (2.7182 ** (-c))
 
-renderRow :: GD.Image -> Int -> Scene -> Camera -> IO ()
-renderRow image y scene (Camera w h r d) = do
+renderChunk :: GD.Image -> Scene -> Double -> Double -> Int -> Int -> Int -> Int -> Double -> Double -> IO ()
+renderChunk image scene w h x1 y1 x2 y2 d r = do
     mapM_
-        (\(x, y, Color r g b) -> GD.setPixel (y, 1000-x) (GD.rgb (round (255 * expose r)) (round (255 * expose g)) (round (255 * expose b))) image)
-        [(x, y, colorSeenBy (Ray (Vector 0 0 (-d) 1) (normalize $ Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) d 1)) scene) | x <- [0..round(w*r)]]
+        (\(x, y, Color red g b) -> GD.setPixel (y, round(w*r)-x) (GD.rgb (round (255 * expose red)) (round (255 * expose g)) (round (255 * expose b))) image)
+        [
+            (x, y, colorSeenBy (Ray (Vector 0 0 (-d) 1) (normalize $ Vector (-w/2+fromIntegral(x)/r) (-h/2+fromIntegral(y)/r) d 1)) scene)
+            | y <- [y1..y2], x <- [x1..x2]
+        ]
 
--- render :: Scene -> Camera -> [((Int, Int),Color)]
--- render scene cam = map (\((x, y), ray) -> ((x, y), colorSeenBy ray scene)) (rays cam)
-
+-- Render a scene from the perspective of the camera to the image
+-- Splits the image into 10 row pieces and processes them in parallel
 render :: Scene -> Camera -> IO GD.Image
-render scene cam@(Camera w h r _) = do
+render scene (Camera w h r d) = do
     image <- GD.newImage (width, height)
-    parallel_ [renderRow image y scene cam | y <- [0..height]]
+    parallel_ [renderChunk image scene w h 0 y (width-1) (min (height-1) (y+99)) d r | y <- [0,100..height-100]]
     return image
   where
     width = round(w*r)
